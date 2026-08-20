@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Plugin - 记忆查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ffe6e6;
+            border: 2px solid #ff6b6b;
+            color: #c92a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-card .label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .data-display {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        }
+        
+        .actions {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            margin: 2px;
+        }
+        
+        .info-box {
+            background: #e7f5ff;
+            border-left: 4px solid #339af0;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Memory Plugin 查看器</h1>
+            <p>查看和管理你的记忆数据</p>
+        </div>
+        
+        <div class="content">
+            <div id="loading" class="loading">
+                <p>⏳ 正在加载记忆数据...</p>
+            </div>
+            
+            <div id="error" class="error" style="display: none;">
+                <h3>❌ 加载失败</h3>
+                <p id="errorMessage"></p>
+            </div>
+            
+            <div id="content" style="display: none;">
+                <div class="info-box">
+                    <strong>💡 提示：</strong>这是 Memory Plugin 的数据查看器。你可以在这里查看所有的记忆数据，包括偏好设置、工具使用统计、项目信息等。
+                </div>
+                
+                <div class="actions">
+                    <button class="btn" onclick="refreshData()">🔄 刷新数据</button>
+                    <button class="btn" onclick="exportData()">💾 导出数据</button>
+                    <button class="btn btn-danger" onclick="clearData()">🗑️ 清除数据</button>
+                </div>
+                
+                <div id="dataContent"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentData = null;
+        
+        // 页面加载时获取数据
+        window.onload = function() {
+            loadData();
+        };
+        
+        // 加载数据
+        async function loadData() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const contentEl = document.getElementById('content');
+            const errorMessageEl = document.getElementById('errorMessage');
+            
+            try {
+                loadingEl.style.display = 'block';
+                errorEl.style.display = 'none';
+                contentEl.style.display = 'none';
+                
+                // 尝试从 localStorage 或文件加载数据
+                const data = await fetchMemoryData();
+                
+                if (!data) {
+                    throw new Error('未找到记忆数据文件。请先使用 Memory Plugin 记录一些数据。');
+                }
+                
+                currentData = data;
+                displayData(data);
+                
+                loadingEl.style.display = 'none';
+                contentEl.style.display = 'block';
+                
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorMessageEl.textContent = error.message;
+                console.error('加载数据失败:', error);
+            }
+        }
+        
+        // 获取记忆数据
+        async function fetchMemoryData() {
+            // 首先尝试从 localStorage 读取（用于演示模式）
+            const stored = localStorage.getItem('memory-plugin-data');
+            if (stored) {
+                return JSON.parse(stored);
+            }
+            
+            // 尝试从文件加载（需要服务器环境）
+            try {
+                const response = await fetch('.dsh-memory.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    // 保存到 localStorage 以便下次使用
+                    localStorage.setItem('memory-plugin-data', JSON.stringify(data));
+                    return data;
+                }
+            } catch (e) {
+                console.log('无法从文件加载，使用 localStorage');
+            }
+            
+            return null;
+        }
+        
+        // 显示数据
+        function displayData(data) {
+            const contentEl = document.getElementById('dataContent');
+            
+            let html = '';
+            
+            // 统计概览
+            html += '<div class="section">';
+            html += '<h2 class="section-title">📊 数据概览</h2>';
+            html += '<div class="stats-grid">';
+            html += `<div class="stat-card"><div class="label">版本</div><div class="value">${data.version || 'N/A'}</div></div>`;
+            html += `<div class="stat-card"><div class="label">会话数</div><div class="value">${data.metadata?.totalSessions || 0}</div></div>`;
+            html += `<div class="stat-card"><div class="label">项目数</div><div class="value">${(data.projectContext?.activeProjects || []).length}</div></div>`;
+            html += `<div class="stat-card"><div class="label">主题数</div><div class="value">${(data.sessionHistory?.recentTopics || []).length}</div></div>`;
+            html += '</div></div>';
+            
+            // 用户偏好
+            if (data.userPreferences && Object.keys(data.userPreferences).length > 0) {
+                html += '<div class="section">';
+                html += '<h2 class="section-title">👤 用户偏好</h2>';
+                html += '<div class="data-display">';
+                html += JSON.stringify(data.userPreferences, null, 2);
+                html += '</div></div>';
+            }
+            
+            // 工具使用统计
+            if (data.sessionHistory?.toolUsageStats && Object.keys(data.sessionHistory.toolUsageStats).length > 0) {
+                html += '<div class="section">';
+                html += '<h2 class="section-title">🛠️ 工具使用统计</h2>';
+                html += '<div class="data-display">';
+                const stats = data.sessionHistory.toolUsageStats;
+                const sorted = Object.entries(stats).sort((a, b) => b[1] - a[1]);
+                sorted.forEach(([tool, count]) => {
+                    html += `${tool}: ${count} 次\n`;
+                });
+                html += '</div></div>';
+            }
+            
+            // 项目列表
+            if (data.projectContext?.activeProjects && data.projectContext.activeProjects.length > 0) {
+                html += '<div class="section">';
+                html += '<h2 class="section-title">📁 项目列表</h2>';
+                html += '<div class="data-display">';
+                data.projectContext.activeProjects.forEach(project => {
+                    html += `• ${project.name}\n`;
+                    html += `  路径: ${project.path}\n`;
+                    html += `  标签: ${(project.tags || []).join(', ')}\n`;
+                    html += `  最后访问: ${new Date(project.lastAccessed).toLocaleString('zh-CN')}\n\n`;
+                });
+                html += '</div></div>';
+            }
+            
+            // 最近主题
+            if (data.sessionHistory?.recentTopics && data.sessionHistory.recentTopics.length > 0) {
+                html += '<div class="section">';
+                html += '<h2 class="section-title">💬 最近主题</h2>';
+                html += '<div class="data-display">';
+                data.sessionHistory.recentTopics.slice(0, 10).forEach((topic, i) => {
+                    html += `${i + 1}. ${topic.content} (${new Date(topic.timestamp).toLocaleString('zh-CN')})\n`;
+                });
+                html += '</div></div>';
+            }
+            
+            // 完整数据
+            html += '<div class="section">';
+            html += '<h2 class="section-title">📦 完整数据（JSON）</h2>';
+            html += '<div class="data-display">';
+            html += JSON.stringify(data, null, 2);
+            html += '</div></div>';
+            
+            contentEl.innerHTML = html;
+        }
+        
+        // 刷新数据
+        function refreshData() {
+            loadData();
+        }
+        
+        // 导出数据
+        function exportData() {
+            if (!currentData) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            const dataStr = JSON.stringify(currentData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `memory-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            alert('✅ 数据已导出！');
+        }
+        
+        // 清除数据
+        function clearData() {
+            if (confirm('⚠️ 确定要清除所有记忆数据吗？此操作不可恢复！')) {
+                localStorage.removeItem('memory-plugin-data');
+                alert('✅ 数据已清除！请刷新页面。');
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>

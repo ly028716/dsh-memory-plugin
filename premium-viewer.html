@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dsh-memory-plugin - 智能记忆系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5568d3;
+            --secondary: #764ba2;
+            --success: #51cf66;
+            --warning: #ffd43b;
+            --danger: #ff6b6b;
+            --dark: #2c3e50;
+            --light: #f8f9fa;
+            --gray: #868e96;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: var(--gray);
+            font-size: 1.1em;
+        }
+        
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .tab-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: all 0.3s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .tab-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+        
+        /* Content Sections */
+        .content-section {
+            display: none;
+            animation: slideIn 0.4s ease-out;
+        }
+        
+        .content-section.active {
+            display: block;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+        }
+        
+        .card-title {
+            font-size: 1.5em;
+            color: var(--dark);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-title .icon {
+            font-size: 1.3em;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 25px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+            transition: transform 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(180deg); }
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px) scale(1.02);
+        }
+        
+        .stat-card .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stat-card .value {
+            font-size: 2.8em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .stat-card .trend {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+        
+        /* Charts */
+        .chart-container {
+            background: var(--light);
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        
+        .bar-chart {
+            margin-top: 15px;
+        }
+        
+        .bar-item {
+            margin-bottom: 15px;
+            animation: barGrow 1s ease-out;
+            animation-fill-mode: both;
+        }
+        
+        @keyframes barGrow {
+            from { opacity: 0; transform: scaleX(0); }
+            to { opacity: 1; transform: scaleX(1); }
+        }
+        
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--dark);
+        }
+        
+        .bar-wrapper {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 32px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            padding-left: 12px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+            transition: width 1s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shine 2s infinite;
+        }
+        
+        @keyframes shine {
+            to { left: 100%; }
+        }
+        
+        /* Tags */
+        .tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: transform 0.2s;
+            cursor: default;
+        }
+        
+        .tag:hover {
+            transform: scale(1.05);
+        }
+        
+        /* List Items */
+        .list-item {
+            background: white;
+            padding: 18px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s;
+            animation: listItemFade 0.5s ease-out;
+            animation-fill-mode: both;
+        }
+        
+        @keyframes listItemFade {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .list-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .list-item .title {
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 8px;
+            font-size: 1.05em;
+        }
+        
+        .list-item .meta {
+            color: var(--gray);
+            font-size: 0.9em;
+            line-height: 1.8;
+        }
+        
+        /* Info Box */
+        .info-box {
+            background: linear-gradient(135deg, #e7f5ff, #d0ebff);
+            border-left: 4px solid var(--primary);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.2); }
+            50% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
+        }
+        
+        .info-box strong {
+            color: var(--primary-dark);
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            border-top: 4px solid var(--primary);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+        
+        .feature-card .icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+        
+        .feature-card h3 {
+            color: var(--dark);
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        .feature-card p {
+            color: var(--gray);
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        
+        /* Code Block */
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin-top: 15px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-tabs {
+                flex-direction: column;
+            }
+            
+            .tab-btn {
+                width: 100%;
+            }
+        }
+        
+        /* Loading Animation */
+        .loading {
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🧠 dsh-memory-plugin</h1>
+            <p>智能记忆系统 · 让开发更高效、更个性化</p>
+        </div>
+        
+        <!-- Navigation -->
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="showTab('overview')">📊 概览</button>
+            <button class="tab-btn" onclick="showTab('preferences')">👤 偏好</button>
+            <button class="tab-btn" onclick="showTab('tools')">🛠️ 工具</button>
+            <button class="tab-btn" onclick="showTab('projects')">📁 项目</button>
+            <button class="tab-btn" onclick="showTab('history')">💬 历史</button>
+            <button class="tab-btn" onclick="showTab('features')">✨ 特性</button>
+        </div>
+        
+        <!-- Overview Tab -->
+        <div id="overview" class="content-section active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">总会话数</div>
+                    <div class="value">25</div>
+                    <div class="trend">↑ 持续增长</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">活跃项目</div>
+                    <div class="value">4</div>
+                    <div class="trend">多项目管理</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">追踪工具</div>
+                    <div class="value">9</div>
+                    <div class="trend">全面覆盖</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">记录主题</div>
+                    <div class="value">10</div>
+                    <div class="trend">丰富上下文</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">💡</span>
+                    <span>核心价值</span>
+                </div>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="icon">🎯</div>
+                        <h3>个性化推荐</h3>
+                        <p>基于你的使用习惯，智能推荐最适合的模型、Agent 和工具配置</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">📈</div>
+                        <h3>效率提升</h3>
+                        <p>自动记住常用设置，减少重复操作，让工作流更流畅</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🔄</div>
+                        <h3>上下文保持</h3>
+                        <p>跨会话保持一致的工作状态，无需每次都重新配置</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">📊</div>
+                        <h3>数据洞察</h3>
+                        <p>清晰展示工作模式和习惯，帮助你优化工作流程</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Preferences Tab -->
+        <div id="preferences" class="content-section">
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">👤</span>
+                    <span>用户偏好设置</span>
+                </div>
+                
+                <div class="info-box">
+                    <strong>这些是你的个性化设置</strong>
+                    系统会自动记住并应用这些偏好，让你每次使用都保持一致的体验。
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <div class="list-item">
+                        <div class="title">🤖 默认大模型</div>
+                        <div class="meta">qwen3.7-plus</div>
+                    </div>
+                    <div class="list-item">
+                        <div class="title">🌐 语言偏好</div>
+                        <div class="meta">zh-CN (简体中文)</div>
+                    </div>
+                    <div class="list-item">
+                        <div class="title">💻 代码风格</div>
+                        <div class="meta">Functional (函数式编程)</div>
+                    </div>
+                    <div class="list-item">
+                        <div class="title">🧪 测试框架</div>
+                        <div class="meta">Jest</div>
+                    </div>
+                    <div class="list-item">
+                        <div class="title">🤖 常用 Agent</div>
+                        <div class="meta">
+                            <div class="tag-container">
+                                <span class="tag">coding-assistant</span>
+                                <span class="tag">code-reviewer</span>
+                                <span class="tag">debug-helper</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tools Tab -->
+        <div id="tools" class="content-section">
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">🛠️</span>
+                    <span>工具使用统计（Top 9）</span>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="bar-chart">
+                        <div class="bar-item" style="animation-delay: 0.1s">
+                            <div class="bar-label"><span>read</span><span>156 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 100%">156</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.2s">
+                            <div class="bar-label"><span>write</span><span>89 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 57%">89</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.3s">
+                            <div class="bar-label"><span>edit</span><span>67 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 43%">67</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.4s">
+                            <div class="bar-label"><span>grep</span><span>52 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 33%">52</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.5s">
+                            <div class="bar-label"><span>glob</span><span>45 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 29%">45</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.6s">
+                            <div class="bar-label"><span>pwsh</span><span>34 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 22%">34</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.7s">
+                            <div class="bar-label"><span>ask_user_question</span><span>28 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 18%">28</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.8s">
+                            <div class="bar-label"><span>todo_write</span><span>23 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 15%">23</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.9s">
+                            <div class="bar-label"><span>web_search</span><span>15 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 10%">15</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">⌨️</span>
+                    <span>常用命令（Top 7）</span>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="bar-chart">
+                        <div class="bar-item" style="animation-delay: 0.1s">
+                            <div class="bar-label"><span><code>pnpm run dev</code></span><span>45 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 100%">45</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.2s">
+                            <div class="bar-label"><span><code>git status</code></span><span>38 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 84%">38</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.3s">
+                            <div class="bar-label"><span><code>npm test</code></span><span>32 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 71%">32</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.4s">
+                            <div class="bar-label"><span><code>pnpm build</code></span><span>28 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 62%">28</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.5s">
+                            <div class="bar-label"><span><code>git commit</code></span><span>25 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 56%">25</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.6s">
+                            <div class="bar-label"><span><code>docker-compose up</code></span><span>18 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 40%">18</div></div>
+                        </div>
+                        <div class="bar-item" style="animation-delay: 0.7s">
+                            <div class="bar-label"><span><code>pnpm lint</code></span><span>15 次</span></div>
+                            <div class="bar-wrapper"><div class="bar-fill" style="width: 33%">15</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Projects Tab -->
+        <div id="projects" class="content-section">
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">📁</span>
+                    <span>项目管理</span>
+                </div>
+                
+                <div class="list-item">
+                    <div class="title">deepseek-harness</div>
+                    <div class="meta">
+                        📂 E:\Projects\deepseek-harness<br>
+                        🏷️ <span class="tag">framework</span> <span class="tag">typescript</span> <span class="tag">ai</span><br>
+                        🕐 最后访问: 2026/8/20 10:30
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="title">my-web-app</div>
+                    <div class="meta">
+                        📂 E:\Projects\web-app<br>
+                        🏷️ <span class="tag">react</span> <span class="tag">nodejs</span> <span class="tag">mongodb</span><br>
+                        🕐 最后访问: 2026/8/19 15:20
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="title">backend-api</div>
+                    <div class="meta">
+                        📂 E:\Projects\api-server<br>
+                        🏷️ <span class="tag">express</span> <span class="tag">postgresql</span> <span class="tag">redis</span><br>
+                        🕐 最后访问: 2026/8/18 09:45
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="title">mobile-app</div>
+                    <div class="meta">
+                        📂 E:\Projects\mobile-app<br>
+                        🏷️ <span class="tag">react-native</span> <span class="tag">ios</span> <span class="tag">android</span><br>
+                        🕐 最后访问: 2026/8/17 14:10
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- History Tab -->
+        <div id="history" class="content-section">
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">💬</span>
+                    <span>最近讨论主题（Top 10）</span>
+                </div>
+                
+                <div class="list-item" style="animation-delay: 0.1s">
+                    <div class="title">1. implement user authentication</div>
+                    <div class="meta">🕐 2026/8/20 10:00</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.2s">
+                    <div class="title">2. fix database connection issue</div>
+                    <div class="meta">🕐 2026/8/20 09:30</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.3s">
+                    <div class="title">3. optimize API performance</div>
+                    <div class="meta">🕐 2026/8/19 16:45</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.4s">
+                    <div class="title">4. add unit tests for auth module</div>
+                    <div class="meta">🕐 2026/8/19 14:20</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.5s">
+                    <div class="title">5. setup CI/CD pipeline</div>
+                    <div class="meta">🕐 2026/8/19 11:00</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.6s">
+                    <div class="title">6. code review for PR #123</div>
+                    <div class="meta">🕐 2026/8/18 15:30</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.7s">
+                    <div class="title">7. refactor database models</div>
+                    <div class="meta">🕐 2026/8/18 10:15</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.8s">
+                    <div class="title">8. implement caching strategy</div>
+                    <div class="meta">🕐 2026/8/17 16:00</div>
+                </div>
+                <div class="list-item" style="animation-delay: 0.9s">
+                    <div class="title">9. fix memory leak in worker</div>
+                    <div class="meta">🕐 2026/8/17 13:45</div>
+                </div>
+                <div class="list-item" style="animation-delay: 1.0s">
+                    <div class="title">10. update dependencies</div>
+                    <div class="meta">🕐 2026/8/16 11:30</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Features Tab -->
+        <div id="features" class="content-section">
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">✨</span>
+                    <span>核心功能特性</span>
+                </div>
+                
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="icon">🎯</div>
+                        <h3>智能推荐引擎</h3>
+                        <p>基于历史数据自动推荐最适合的模型、Agent 和工具配置，提高工作效率</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">📊</div>
+                        <h3>数据可视化</h3>
+                        <p>清晰的图表和统计信息，直观展示工作模式和习惯</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🔄</div>
+                        <h3>持久化存储</h3>
+                        <p>所有数据本地保存，跨会话保持一致，支持导入导出备份</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🔒</div>
+                        <h3>隐私保护</h3>
+                        <p>完全本地存储，无云端同步，用户完全掌控自己的数据</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">⚡</div>
+                        <h3>高性能</h3>
+                        <p>轻量级设计，自动保存机制，不影响主程序性能</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">🎨</div>
+                        <h3>可定制</h3>
+                        <p>灵活的配置选项，可以根据需求启用或禁用特定功能</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">
+                    <span class="icon">🚀</span>
+                    <span>快速开始</span>
+                </div>
+                
+                <div class="info-box">
+                    <strong>只需 3 步即可使用</strong>
+                    1. 在代码中引入 Memory Plugin<br>
+                    2. 配置插件参数<br>
+                    3. 开始使用，数据会自动记录
+                </div>
+                
+                <div class="code-block">
+const memoryPlugin = require('./memory-plugin');
+
+// 应用插件
+memoryPlugin.apply(ctx, {
+  storagePath: '.dsh-memory.json',
+  trackToolCalls: true,
+  enableRecommendations: true
+});
+
+// 使用 API
+await ctx.memory.setPreference('model', 'qwen3.7-plus');
+const recs = ctx.memory.getRecommendations('coding');
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected section
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+        
+        // Animate bars on load
+        window.addEventListener('load', () => {
+            const bars = document.querySelectorAll('.bar-fill');
+            bars.forEach((bar, index) => {
+                const width = bar.style.width;
+                bar.style.width = '0';
+                setTimeout(() => {
+                    bar.style.width = width;
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+</html>

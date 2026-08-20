@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dsh-memory-plugin - 记忆查看器（演示版）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-card .label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .data-display {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            margin: 2px;
+        }
+        
+        .info-box {
+            background: #e7f5ff;
+            border-left: 4px solid #339af0;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+        
+        .list-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 3px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 dsh-memory-plugin 查看器</h1>
+            <p>查看和管理你的记忆数据（演示模式）</p>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                <strong>💡 提示：</strong>这是演示模式，显示的是示例数据。实际使用时，数据会来自 .dsh-memory.json 文件。
+            </div>
+            
+            <!-- 统计概览 -->
+            <div class="section">
+                <h2 class="section-title">📊 数据概览</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="label">版本</div>
+                        <div class="value">1.0.0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">会话数</div>
+                        <div class="value">3</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">项目数</div>
+                        <div class="value">2</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">主题数</div>
+                        <div class="value">6</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 用户偏好 -->
+            <div class="section">
+                <h2 class="section-title">👤 用户偏好</h2>
+                <div class="data-display">{
+  "defaultModel": "qwen3.7-plus",
+  "language": "zh-CN",
+  "preferredAgents": [
+    "coding-assistant",
+    "code-reviewer"
+  ]
+}</div>
+            </div>
+            
+            <!-- 工具使用统计 -->
+            <div class="section">
+                <h2 class="section-title">🛠️ 工具使用统计</h2>
+                <div class="data-display">read: 45 次
+write: 28 次
+edit: 19 次
+glob: 15 次
+grep: 12 次</div>
+            </div>
+            
+            <!-- 项目列表 -->
+            <div class="section">
+                <h2 class="section-title">📁 项目列表</h2>
+                <div class="list-item">
+                    <strong>my-web-app</strong><br>
+                    路径: E:\Projects\my-app<br>
+                    标签: <span class="tag">react</span> <span class="tag">typescript</span><br>
+                    最后访问: 2026/8/20
+                </div>
+                <div class="list-item">
+                    <strong>memory-plugin</strong><br>
+                    路径: E:\IDEWorkplaces\DeepSeekHarness\memory-plugin<br>
+                    标签: <span class="tag">current-workspace</span><br>
+                    最后访问: 2026/8/20
+                </div>
+            </div>
+            
+            <!-- 最近主题 -->
+            <div class="section">
+                <h2 class="section-title">💬 最近主题</h2>
+                <div class="list-item">1. implement user authentication (2026/8/20 10:00)</div>
+                <div class="list-item">2. fix database issue (2026/8/20 09:30)</div>
+                <div class="list-item">3. plugin development (2026/8/19)</div>
+                <div class="list-item">4. memory system design (2026/8/19)</div>
+                <div class="list-item">5. DSH integration (2026/8/18)</div>
+                <div class="list-item">6. testing strategies (2026/8/18)</div>
+            </div>
+            
+            <!-- 完整数据 -->
+            <div class="section">
+                <h2 class="section-title">📦 说明</h2>
+                <div class="info-box">
+                    <strong>这是一个演示页面！</strong><br><br>
+                    要查看真实的记忆数据：<br>
+                    1. 运行 <code>node quick-start.js</code> 生成数据<br>
+                    2. 运行 <code>node import-data.js</code> 导入到浏览器<br>
+                    3. 打开 <code>viewer.html</code> 查看真实数据<br><br>
+                    或者直接在代码中使用 Memory Plugin API 来记录和管理数据。
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

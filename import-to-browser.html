@@ -1,0 +1,25 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>导入数据到 LocalStorage</title>
+</head>
+<body>
+    <h1>正在导入数据...</h1>
+    <script>
+        // 设置 localStorage
+        localStorage.setItem('memory-plugin-data', "{\"version\":\"1.0.0\",\"lastUpdated\":\"2026-08-20T14:50:24.626Z\",\"userPreferences\":{\"preferredAgents\":[\"coding-assistant\",\"code-reviewer\"],\"defaultModel\":\"qwen3.7-plus\",\"language\":\"zh-CN\",\"workingDirectory\":null,\"customSettings\":{}},\"inputHabits\":{\"commonCommands\":[],\"frequentPatterns\":[],\"preferredTools\":[]},\"projectContext\":{\"activeProjects\":[{\"path\":\"E:\\\\Projects\\\\my-app\",\"name\":\"my-web-app\",\"tags\":[\"react\",\"typescript\"],\"lastAccessed\":\"2026-08-20T14:50:24.623Z\"},{\"path\":\"E:\\\\IDEWorkplaces\\\\DeepSeekHarness\\\\memory-plugin\",\"name\":\"memory-plugin\",\"tags\":[\"current-workspace\"],\"lastAccessed\":\"2026-08-20T14:50:24.111Z\"}]},\"sessionHistory\":{\"recentTopics\":[{\"content\":\"fix database issue\",\"timestamp\":\"2026-08-20T14:50:24.626Z\"},{\"content\":\"implement user authentication\",\"timestamp\":\"2026-08-20T14:50:24.624Z\"},{\"content\":\"fix database issue\",\"timestamp\":\"2026-08-20T14:50:08.120Z\"},{\"content\":\"implement user authentication\",\"timestamp\":\"2026-08-20T14:50:08.118Z\"},{\"content\":\"fix database issue\",\"timestamp\":\"2026-08-20T14:49:56.907Z\"},{\"content\":\"implement user authentication\",\"timestamp\":\"2026-08-20T14:49:56.905Z\"}],\"frequentTasks\":[],\"toolUsageStats\":{\"read\":45,\"write\":28,\"edit\":19,\"glob\":15,\"grep\":12}},\"metadata\":{\"createdAt\":\"2026-08-20T14:49:56.393Z\",\"totalSessions\":3,\"lastSessionDate\":\"2026-08-20T14:50:24.106Z\"}}");
+        
+        // 显示成功消息
+        document.body.innerHTML = '<h1>✅ 数据导入成功！</h1>' +
+            '<p>现在可以关闭此页面，然后刷新 viewer.html</p>' +
+            '<p><a href="viewer.html" target="_blank">打开查看器 →</a></p>';
+        
+        // 3秒后自动跳转到查看器
+        setTimeout(() => {
+            window.location.href = 'viewer.html';
+        }, 2000);
+    </script>
+</body>
+</html>

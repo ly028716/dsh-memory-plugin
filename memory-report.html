@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Plugin - 使用报告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 1.8em;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .bar-chart {
+            margin-top: 20px;
+        }
+        
+        .bar-item {
+            margin-bottom: 15px;
+        }
+        
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .bar-wrapper {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+        }
+        
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            transition: width 1s ease-out;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .preference-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .preference-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .preference-item .key {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .preference-item .value {
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin: 2px;
+        }
+        
+        .list-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        
+        .list-item .title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .list-item .meta {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .comparison-card {
+            padding: 25px;
+            border-radius: 15px;
+        }
+        
+        .comparison-card.without {
+            background: #ffe6e6;
+            border: 2px solid #ff6b6b;
+        }
+        
+        .comparison-card.with {
+            background: #e6ffe6;
+            border: 2px solid #51cf66;
+        }
+        
+        .comparison-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .comparison-card ul {
+            list-style: none;
+        }
+        
+        .comparison-card li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .comparison-card.without li:before {
+            content: "❌";
+            position: absolute;
+            left: 0;
+        }
+        
+        .comparison-card.with li:before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Memory Plugin 使用报告</h1>
+            <p>智能记忆系统 · 个性化开发助手</p>
+        </div>
+        
+        <div class="content">
+            <!-- 统计概览 -->
+            <div class="section">
+                <h2 class="section-title">📊 数据概览</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="label">总会话数</div>
+                        <div class="value">25</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">活跃项目</div>
+                        <div class="value">4</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">追踪工具</div>
+                        <div class="value">9</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">记录主题</div>
+                        <div class="value">10</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 用户偏好 -->
+            <div class="section">
+                <h2 class="section-title">👤 用户偏好</h2>
+                <div class="preference-list">
+                    <div class="preference-item">
+                        <div class="key">默认大模型</div>
+                        <div class="value">qwen3.7-plus</div>
+                    </div>
+                    <div class="preference-item">
+                        <div class="key">语言偏好</div>
+                        <div class="value">zh-CN (中文)</div>
+                    </div>
+                    <div class="preference-item">
+                        <div class="key">代码风格</div>
+                        <div class="value">Functional (函数式)</div>
+                    </div>
+                    <div class="preference-item">
+                        <div class="key">测试框架</div>
+                        <div class="value">Jest</div>
+                    </div>
+                    <div class="preference-item" style="grid-column: 1 / -1;">
+                        <div class="key">常用 Agent</div>
+                        <div class="value">
+                            <span class="tag">coding-assistant</span>
+                            <span class="tag">code-reviewer</span>
+                            <span class="tag">debug-helper</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 工具使用统计 -->
+            <div class="section">
+                <h2 class="section-title">🛠️ 工具使用统计（Top 9）</h2>
+                <div class="chart-container">
+                    <div class="bar-chart">
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>read</span>
+                                <span>156 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 100%">156</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>write</span>
+                                <span>89 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 57.1%">89</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>edit</span>
+                                <span>67 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 42.9%">67</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>grep</span>
+                                <span>52 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 33.3%">52</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>glob</span>
+                                <span>45 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 28.8%">45</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>pwsh</span>
+                                <span>34 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 21.8%">34</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>ask_user_question</span>
+                                <span>28 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 17.9%">28</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>todo_write</span>
+                                <span>23 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 14.7%">23</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span>web_search</span>
+                                <span>15 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 9.6%">15</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 常用命令 -->
+            <div class="section">
+                <h2 class="section-title">⌨️ 常用命令（Top 7）</h2>
+                <div class="chart-container">
+                    <div class="bar-chart">
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>pnpm run dev</code></span>
+                                <span>45 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 100%">45</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>git status</code></span>
+                                <span>38 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 84.4%">38</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>npm test</code></span>
+                                <span>32 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 71.1%">32</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>pnpm build</code></span>
+                                <span>28 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 62.2%">28</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>git commit</code></span>
+                                <span>25 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 55.6%">25</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>docker-compose up</code></span>
+                                <span>18 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 40%">18</div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span><code>pnpm lint</code></span>
+                                <span>15 次</span>
+                            </div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 33.3%">15</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 项目管理 -->
+            <div class="section">
+                <h2 class="section-title">📁 项目管理</h2>
+                <div class="list-item">
+                    <div class="title">deepseek-harness</div>
+                    <div class="meta">
+                        <div>📂 E:\Projects\deepseek-harness</div>
+                        <div>🏷️  <span class="tag">framework</span> <span class="tag">typescript</span> <span class="tag">ai</span></div>
+                        <div>🕐 最后访问: 2026/8/20 10:30:00</div>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="title">my-web-app</div>
+                    <div class="meta">
+                        <div>📂 E:\Projects\web-app</div>
+                        <div>🏷️  <span class="tag">react</span> <span class="tag">nodejs</span> <span class="tag">mongodb</span></div>
+                        <div>🕐 最后访问: 2026/8/19 15:20:00</div>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="title">backend-api</div>
+                    <div class="meta">
+                        <div>📂 E:\Projects\api-server</div>
+                        <div>🏷️  <span class="tag">express</span> <span class="tag">postgresql</span> <span class="tag">redis</span></div>
+                        <div>🕐 最后访问: 2026/8/18 09:45:00</div>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="title">mobile-app</div>
+                    <div class="meta">
+                        <div>📂 E:\Projects\mobile-app</div>
+                        <div>🏷️  <span class="tag">react-native</span> <span class="tag">ios</span> <span class="tag">android</span></div>
+                        <div>🕐 最后访问: 2026/8/17 14:10:00</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 会话历史 -->
+            <div class="section">
+                <h2 class="section-title">💬 最近讨论主题（Top 10）</h2>
+                <div class="list-item">
+                    <div class="title">1. implement user authentication</div>
+                    <div class="meta">🕐 2026/8/20 10:00:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">2. fix database connection issue</div>
+                    <div class="meta">🕐 2026/8/20 09:30:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">3. optimize API performance</div>
+                    <div class="meta">🕐 2026/8/19 16:45:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">4. add unit tests for auth module</div>
+                    <div class="meta">🕐 2026/8/19 14:20:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">5. setup CI/CD pipeline</div>
+                    <div class="meta">🕐 2026/8/19 11:00:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">6. code review for PR #123</div>
+                    <div class="meta">🕐 2026/8/18 15:30:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">7. refactor database models</div>
+                    <div class="meta">🕐 2026/8/18 10:15:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">8. implement caching strategy</div>
+                    <div class="meta">🕐 2026/8/17 16:00:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">9. fix memory leak in worker</div>
+                    <div class="meta">🕐 2026/8/17 13:45:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">10. update dependencies</div>
+                    <div class="meta">🕐 2026/8/16 11:30:00</div>
+                </div>
+            </div>
+            
+            <!-- 完成任务 -->
+            <div class="section">
+                <h2 class="section-title">✅ 完成的任务</h2>
+                <div class="list-item">
+                    <div class="title">1. create user model</div>
+                    <div class="meta">🕐 2026/8/20 10:30:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">2. implement login API</div>
+                    <div class="meta">🕐 2026/8/20 09:45:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">3. write test cases</div>
+                    <div class="meta">🕐 2026/8/19 15:00:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">4. fix security vulnerability</div>
+                    <div class="meta">🕐 2026/8/19 11:30:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">5. optimize database query</div>
+                    <div class="meta">🕐 2026/8/18 14:20:00</div>
+                </div>
+                <div class="list-item">
+                    <div class="title">6. setup Docker environment</div>
+                    <div class="meta">🕐 2026/8/17 16:30:00</div>
+                </div>
+            </div>
+            
+            <!-- 对比展示 -->
+            <div class="section">
+                <h2 class="section-title">🔄 价值对比</h2>
+                <div class="comparison">
+                    <div class="comparison-card without">
+                        <h3>❌ 没有记忆系统</h3>
+                        <ul>
+                            <li>每次都要重新选择模型</li>
+                            <li>每次都要重新配置 Agent</li>
+                            <li>不记得之前讨论过什么</li>
+                            <li>不知道你在做什么项目</li>
+                            <li>无法提供个性化建议</li>
+                            <li>重复操作浪费时间</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-card with">
+                        <h3>✅ 有记忆系统</h3>
+                        <ul>
+                            <li>自动使用你喜欢的模型</li>
+                            <li>推荐你常用的 Agent</li>
+                            <li>记得之前的讨论主题</li>
+                            <li>了解你的项目上下文</li>
+                            <li>提供个性化的智能建议</li>
+                            <li>提高开发效率和工作体验</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 智能推荐示例 -->
+            <div class="section">
+                <h2 class="section-title">🎯 智能推荐示例</h2>
+                <div class="chart-container">
+                    <p style="margin-bottom: 15px; color: #666;">基于你的使用历史，系统会提供以下推荐：</p>
+                    <div class="list-item">
+                        <div class="title">💡 Agent 推荐</div>
+                        <div class="meta">
+                            <span class="tag">coding-assistant</span>
+                            <span class="tag">code-reviewer</span>
+                            <span class="tag">debug-helper</span>
+                            <br><small>原因：Based on your usage history</small>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div class="title">💡 模型推荐</div>
+                        <div class="meta">
+                            <span class="tag">qwen3.7-plus</span>
+                            <br><small>原因：Your preferred model</small>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div class="title">💡 项目推荐</div>
+                        <div class="meta">
+                            <span class="tag">deepseek-harness</span>
+                            <span class="tag">my-web-app</span>
+                            <span class="tag">backend-api</span>
+                            <br><small>原因：Recently accessed projects</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>📅 报告生成时间: 2026/8/20 22:35:00</p>
+            <p>🧠 Memory Plugin v1.0.0 | 让开发更智能、更高效</p>
+        </div>
+    </div>
+</body>
+</html>
