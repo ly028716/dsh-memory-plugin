@@ -31,7 +31,24 @@ dsh-memory-plugin 是一个为 DeepSeek Harness (DSH) 设计的智能记忆系�
 
 ## 🚀 快速开始
 
-### 安装
+### 一键安装（推荐）
+
+**Windows 用户：**
+
+```bash
+# 方式 1：双击运行
+install.bat
+
+# 方式 2：PowerShell
+.\install.ps1
+```
+
+脚本会自动：
+- 🔍 查找 DSH 配置目录
+- 📦 复制或创建符号链接
+- ✅ 验证安装结果
+
+### 手动安装
 
 #### 方式 1：作为本地插件
 

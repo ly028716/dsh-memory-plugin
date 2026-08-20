@@ -31,7 +31,24 @@ dsh-memory-plugin is an intelligent memory system plugin designed for DeepSeek H
 
 ## 🚀 Quick Start
 
-### Installation
+### One-Click Install (Recommended)
+
+**For Windows users:**
+
+```bash
+# Option 1: Double-click
+install.bat
+
+# Option 2: PowerShell
+.\install.ps1
+```
+
+The script will automatically:
+- 🔍 Find DSH configuration directory
+- 📦 Copy or create symbolic link
+- ✅ Verify installation result
+
+### Manual Installation
 
 #### Option 1: As a Local Plugin
 
