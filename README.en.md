@@ -70,7 +70,7 @@ const memoryPlugin = require('./dsh-memory-plugin');
 const ctx = {
   _services: {},
   effect(fn) { /* ... */ },
-  registerService(name, service) {
+  provide(name, service) {
     this._services[name] = service;
   }
 };

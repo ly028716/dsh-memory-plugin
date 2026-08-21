@@ -46,53 +46,54 @@ module.exports = {
       
       // Initialize memory system
       let isInitialized = false;
+      let initializationPromise = null;
       
       const initializeMemory = async () => {
         if (isInitialized) return;
-        
-        try {
-          await memoryManager.initialize();
-          isInitialized = true;
-          console.log('Memory system initialized successfully');
-          
-          // Record current working directory as project context
-          const cwd = process.cwd();
-          await memoryManager.recordProjectContext({
-            path: cwd,
-            name: cwd.split(/[\\/]/).pop() || cwd,
-            tags: ['current-workspace']
-          });
-        } catch (error) {
-          console.error('Memory plugin: Initialization failed:', error.message);
-        }
+
+        if (initializationPromise) return initializationPromise;
+
+        initializationPromise = (async () => {
+          try {
+            await memoryManager.initialize();
+            isInitialized = true;
+            console.log('Memory system initialized successfully');
+
+            // Record current working directory as project context
+            const cwd = process.cwd();
+            await memoryManager.recordProjectContext({
+              path: cwd,
+              name: cwd.split(/[\\/]/).pop() || cwd,
+              tags: ['current-workspace']
+            });
+          } catch (error) {
+            console.error('Memory plugin: Initialization failed:', error.message);
+          } finally {
+            initializationPromise = null;
+          }
+        })();
+
+        return initializationPromise;
       };
       
       // Subscribe to tool calls to track usage
-      if (config.trackToolCalls && ctx.subscribe) {
-        ctx.effect(() => {
-          // Try to subscribe to tool call events
-          // Note: The actual event system may vary based on DSH version
-          const unsubscribe = ctx.subscribe?.('tool-call', async (event) => {
-            if (!isInitialized) {
-              await initializeMemory();
-            }
-            
-            try {
-              await memoryManager.recordToolCall({
-                name: event.toolName || event.name,
-                args: event.args,
-                result: event.result
-              });
-            } catch (error) {
-              console.error('Memory plugin: Failed to record tool call:', error.message);
-            }
-          });
+      if (config.trackToolCalls && ctx.on) {
+        // Cordis event listeners are lifecycle-bound effects and are removed
+        // automatically when the plugin unloads.
+        ctx.on('tools/result', async (exec, result) => {
+          if (!isInitialized) {
+            await initializeMemory();
+          }
           
-          return () => {
-            if (unsubscribe) {
-              unsubscribe();
-            }
-          };
+          try {
+            await memoryManager.recordToolCall({
+              name: exec.name,
+              args: exec.arguments,
+              result
+            });
+          } catch (error) {
+            console.error('Memory plugin: Failed to record tool call:', error.message);
+          }
         });
       }
       
@@ -105,37 +106,35 @@ module.exports = {
       });
       
       // Expose memory manager API through context for other plugins/features
-      if (ctx.registerService) {
-        ctx.registerService('memory', {
-          // Preference management
-          setPreference: (key, value) => memoryManager.recordPreference(key, value),
-          getPreference: (key) => storage.get(`userPreferences.${key}`),
-          
-          // Session tracking
-          recordTopic: (topic) => memoryManager.recordSessionItem('topic', topic),
-          recordTask: (task) => memoryManager.recordSessionItem('task', task),
-          
-          // Project context
-          addProject: (projectInfo) => memoryManager.recordProjectContext(projectInfo),
-          
-          // Recommendations
-          getRecommendations: (context) => memoryManager.getRecommendations(context),
-          
-          // Statistics
-          getStats: () => memoryManager.getStats(),
-          
-          // Data management
-          exportData: () => memoryManager.exportData(),
-          importData: (data) => memoryManager.importData(data),
-          clearMemory: () => memoryManager.clearMemory(),
-          
-          // Direct storage access (advanced)
-          storage: {
-            get: (path) => storage.get(path),
-            set: (path, value) => storage.set(path, value)
-          }
-        });
-      }
+      ctx.provide('memory', {
+        // Preference management
+        setPreference: (key, value) => memoryManager.recordPreference(key, value),
+        getPreference: (key) => storage.get(`userPreferences.${key}`),
+
+        // Session tracking
+        recordTopic: (topic) => memoryManager.recordSessionItem('topic', topic),
+        recordTask: (task) => memoryManager.recordSessionItem('task', task),
+
+        // Project context
+        addProject: (projectInfo) => memoryManager.recordProjectContext(projectInfo),
+
+        // Recommendations
+        getRecommendations: (context) => memoryManager.getRecommendations(context),
+
+        // Statistics
+        getStats: () => memoryManager.getStats(),
+
+        // Data management
+        exportData: () => memoryManager.exportData(),
+        importData: (data) => memoryManager.importData(data),
+        clearMemory: () => memoryManager.clearMemory(),
+
+        // Direct storage access (advanced)
+        storage: {
+          get: (path) => storage.get(path),
+          set: (path, value) => storage.set(path, value)
+        }
+      });
       
       // Initialize on first use
       initializeMemory().catch(error => {

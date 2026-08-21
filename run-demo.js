@@ -19,7 +19,7 @@ const ctx = {
     this._effects.push(cleanupFn);
   },
   
-  registerService(name, service) {
+  provide(name, service) {
     this._services[name] = service;
     console.log('✅ 服务已注册:', name);
   }

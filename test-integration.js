@@ -47,29 +47,36 @@ async function simulateDSHLoading() {
   const mockCtx = {
     _effects: [],
     _services: {},
-    _subscriptions: [],
+    _serviceDisposers: [],
+    _listeners: [],
     
-    effect(cleanupFn) {
-      this._effects.push(cleanupFn);
+    effect(effectFn) {
+      const cleanup = effectFn();
+      this._effects.push(cleanup);
       console.log('   📝 Effect registered');
       return () => {
-        const idx = this._effects.indexOf(cleanupFn);
+        const idx = this._effects.indexOf(cleanup);
         if (idx > -1) this._effects.splice(idx, 1);
       };
     },
     
-    subscribe(event, handler) {
-      this._subscriptions.push({ event, handler });
-      console.log(`   📝 Subscription registered: ${event}`);
+    on(event, handler) {
+      this._listeners.push({ event, handler });
+      console.log(`   📝 Event listener registered: ${event}`);
       return () => {
-        const idx = this._subscriptions.findIndex(s => s.event === event && s.handler === handler);
-        if (idx > -1) this._subscriptions.splice(idx, 1);
+        const idx = this._listeners.findIndex(s => s.event === event && s.handler === handler);
+        if (idx > -1) this._listeners.splice(idx, 1);
       };
     },
     
-    registerService(name, service) {
+    provide(name, service) {
       this._services[name] = service;
-      console.log(`   📝 Service registered: ${name}`);
+      const dispose = () => {
+        delete this._services[name];
+      };
+      this._serviceDisposers.push(dispose);
+      console.log(`   📝 Service provided: ${name}`);
+      return dispose;
     }
   };
   
@@ -92,7 +99,11 @@ async function simulateDSHLoading() {
     
     // Wait for async initialization
     await new Promise(resolve => setTimeout(resolve, 300));
-    
+
+    if (!mockCtx._listeners.some(listener => listener.event === 'tools/result')) {
+      throw new Error('Plugin did not register the tools/result event listener');
+    }
+
   } catch (error) {
     console.log(`   ❌ Plugin apply failed: ${error.message}`);
     throw error;
@@ -102,8 +113,7 @@ async function simulateDSHLoading() {
   console.log('\n🧪 Step 5: Testing memory service API...');
   
   if (!mockCtx._services.memory) {
-    console.log('   ⚠️  Memory service not registered');
-    console.log('   Note: This may be expected if ctx.registerService is not available');
+    throw new Error('Plugin did not provide the memory service');
   } else {
     const memory = mockCtx._services.memory;
     
@@ -158,6 +168,10 @@ async function simulateDSHLoading() {
         // Ignore cleanup errors
       }
     }
+  }
+
+  for (const dispose of mockCtx._serviceDisposers) {
+    dispose();
   }
   
   // Remove test file

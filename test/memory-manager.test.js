@@ -58,6 +58,16 @@ describe('MemoryManager', () => {
     test('should start auto-save timer', () => {
       expect(manager.autoSaveTimer).toBeDefined();
     });
+
+    test('should initialize concurrent callers only once', async () => {
+      const concurrentStorage = new MemoryStorage(testFile + '-concurrent');
+      const concurrentManager = new MemoryManager(config, concurrentStorage);
+
+      await Promise.all([concurrentManager.initialize(), concurrentManager.initialize()]);
+
+      expect(concurrentStorage.get('metadata.totalSessions')).toBe(1);
+      await concurrentManager.dispose();
+    });
   });
 
   describe('Tool Call Recording', () => {
@@ -157,6 +167,13 @@ describe('MemoryManager', () => {
       const projects = storage.get('projectContext.activeProjects');
       expect(projects.length).toBe(1);
       expect(projects[0].name).toBe('Test Project');
+    });
+
+    test('should derive a project name from its path when omitted', async () => {
+      await manager.recordProjectContext({ path: '/test/project' });
+
+      const projects = storage.get('projectContext.activeProjects');
+      expect(projects[0].name).toBe('project');
     });
 
     test('should not record when tracking is disabled', async () => {

@@ -49,6 +49,35 @@ describe('MemoryStorage', () => {
       const value = storage.get('customField');
       expect(value).toBe('test');
     });
+
+    test('should initialize concurrent callers only once', async () => {
+      await Promise.all([storage.initialize(), storage.initialize()]);
+
+      expect(storage.get('metadata.totalSessions')).toBe(0);
+      expect(await fs.readFile(testFile, 'utf-8')).toContain('"version"');
+    });
+
+    test('should create parent directories for nested storage paths', async () => {
+      const nestedFile = path.join(testDir, 'nested', 'memory', 'test.json');
+      const nestedStorage = new MemoryStorage(nestedFile);
+
+      await nestedStorage.initialize();
+
+      expect(await fs.readFile(nestedFile, 'utf-8')).toContain('"version"');
+    });
+
+    test('should fill missing fields when loading partial data', async () => {
+      await fs.writeFile(testFile, JSON.stringify({
+        version: '1.0.0',
+        metadata: { createdAt: new Date().toISOString() },
+        userPreferences: { imported: true }
+      }));
+
+      await storage.initialize();
+
+      expect(storage.get('sessionHistory.toolUsageStats')).toEqual({});
+      expect(storage.get('projectContext.activeProjects')).toEqual([]);
+    });
   });
 
   describe('Get and Set', () => {
@@ -111,6 +140,16 @@ describe('MemoryStorage', () => {
       if (before) {
         expect(new Date(after)).toBeGreaterThan(new Date(before));
       }
+    });
+
+    test('should serialize concurrent saves without losing the file', async () => {
+      storage.set('userPreferences.defaultModel', 'concurrent-model');
+
+      await Promise.all([storage.save(), storage.save(), storage.save()]);
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('userPreferences.defaultModel')).toBe('concurrent-model');
     });
   });
 
@@ -203,12 +242,40 @@ describe('MemoryStorage', () => {
       expect(prefs).toBeUndefined();
     });
 
+    test('should persist cleared data and isolate default nested objects', async () => {
+      storage.set('userPreferences.preferredAgents', ['agent']);
+      await storage.clear();
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('userPreferences.preferredAgents')).toEqual([]);
+
+      reloaded.get('userPreferences.preferredAgents').push('mutated');
+      expect(reloaded.get('userPreferences.preferredAgents')).toEqual([]);
+    });
+
     test('should export data', async () => {
       storage.set('userPreferences.test', 'value');
       const data = storage.exportData();
       
       expect(data.userPreferences.test).toBe('value');
       expect(data.version).toBe('1.0.0');
+    });
+
+    test('should deep clone exported and imported data', async () => {
+      storage.set('userPreferences.customSettings', { nested: { enabled: true } });
+      const exported = storage.exportData();
+      exported.userPreferences.customSettings.nested.enabled = false;
+      expect(storage.get('userPreferences.customSettings.nested.enabled')).toBe(true);
+
+      const imported = {
+        version: '1.0.0',
+        metadata: { createdAt: new Date().toISOString() },
+        userPreferences: { customSettings: { nested: { enabled: true } } }
+      };
+      await storage.importData(imported);
+      imported.userPreferences.customSettings.nested.enabled = false;
+      expect(storage.get('userPreferences.customSettings.nested.enabled')).toBe(true);
     });
 
     test('should import data', async () => {

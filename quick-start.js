@@ -14,7 +14,7 @@ const ctx = {
   _effects: [],
   _services: {},
   effect(cleanupFn) { this._effects.push(cleanupFn); },
-  registerService(name, service) { 
+  provide(name, service) {
     this._services[name] = service; 
   }
 };

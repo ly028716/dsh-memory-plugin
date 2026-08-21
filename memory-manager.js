@@ -4,6 +4,7 @@
  */
 
 const { MemoryStorage } = require('./storage');
+const path = require('path');
 
 class MemoryManager {
   constructor(config, storage) {
@@ -11,20 +12,36 @@ class MemoryManager {
     this.storage = storage;
     this.autoSaveTimer = null;
     this.sessionStartTime = null;
+    this._initializePromise = null;
   }
 
   /**
    * Initialize the memory manager
    */
   async initialize() {
-    await this.storage.initialize();
-    this.startAutoSave();
-    this.sessionStartTime = Date.now();
-    
-    // Update session metadata
-    this.storage.increment('metadata.totalSessions');
-    this.storage.set('metadata.lastSessionDate', new Date().toISOString());
-    await this.storage.save();
+    if (this.sessionStartTime) return;
+    if (this._initializePromise) return this._initializePromise;
+
+    this._initializePromise = (async () => {
+      await this.storage.initialize();
+      this.startAutoSave();
+      this.sessionStartTime = Date.now();
+
+      // Update session metadata
+      this.storage.increment('metadata.totalSessions');
+      this.storage.set('metadata.lastSessionDate', new Date().toISOString());
+      await this.storage.save();
+    })();
+
+    try {
+      await this._initializePromise;
+    } catch (error) {
+      this.stopAutoSave();
+      this.sessionStartTime = null;
+      throw error;
+    } finally {
+      this._initializePromise = null;
+    }
   }
 
   /**
@@ -257,8 +274,13 @@ class MemoryManager {
    * Cleanup resources
    */
   async dispose() {
+    if (this._initializePromise) {
+      await this._initializePromise.catch(() => {});
+    }
     this.stopAutoSave();
-    await this.storage.save();
+    if (this.storage.memory) {
+      await this.storage.save();
+    }
   }
 }
 

@@ -39,31 +39,105 @@ const DEFAULT_MEMORY = {
   }
 };
 
+function cloneData(value) {
+  if (value === undefined || value === null) return value;
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergeDefaults(defaults, value) {
+  if (Array.isArray(defaults)) {
+    return Array.isArray(value) ? cloneData(value) : cloneData(defaults);
+  }
+
+  if (defaults && typeof defaults === 'object') {
+    const source = value && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : {};
+    const result = {};
+
+    for (const key of Object.keys(defaults)) {
+      result[key] = mergeDefaults(defaults[key], source[key]);
+    }
+
+    for (const key of Object.keys(source)) {
+      if (!(key in defaults)) {
+        result[key] = cloneData(source[key]);
+      }
+    }
+
+    return result;
+  }
+
+  return value === undefined ? defaults : cloneData(value);
+}
+
+function createDefaultMemory() {
+  return cloneData(DEFAULT_MEMORY);
+}
+
 /**
  * MemoryStorage class for managing persistent memory data
  */
 class MemoryStorage {
   constructor(storagePath) {
+    if (typeof storagePath !== 'string' || storagePath.trim() === '') {
+      throw new Error('storagePath must be a non-empty string');
+    }
+
     this.storagePath = path.resolve(process.cwd(), storagePath);
     this.memory = null;
     this.isDirty = false;
+    this._dirtyVersion = 0;
+    this._initializePromise = null;
+    this._saveQueue = Promise.resolve();
+  }
+
+  assertInitialized() {
+    if (!this.memory) {
+      throw new Error('Memory not initialized. Call initialize() first.');
+    }
+  }
+
+  markDirty() {
+    this.isDirty = true;
+    this._dirtyVersion += 1;
   }
 
   /**
    * Initialize storage - load existing data or create new
    */
   async initialize() {
-    try {
-      await this.load();
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        // File doesn't exist, create with defaults
-        this.memory = { ...DEFAULT_MEMORY };
+    if (this.memory) return;
+    if (this._initializePromise) return this._initializePromise;
+
+    this._initializePromise = (async () => {
+      await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
+
+      try {
+        await this.load();
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+
+        // File doesn't exist, create an isolated default data set.
+        this.memory = createDefaultMemory();
         this.memory.metadata.createdAt = new Date().toISOString();
+        this.markDirty();
         await this.save();
-      } else {
-        throw error;
       }
+    })();
+
+    try {
+      await this._initializePromise;
+    } catch (error) {
+      this.memory = null;
+      this.isDirty = false;
+      this._dirtyVersion = 0;
+      throw error;
+    } finally {
+      this._initializePromise = null;
     }
   }
 
@@ -72,28 +146,50 @@ class MemoryStorage {
    */
   async load() {
     const content = await fs.readFile(this.storagePath, 'utf-8');
-    this.memory = JSON.parse(content);
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Invalid memory data format');
+    }
+
+    this.memory = mergeDefaults(DEFAULT_MEMORY, parsed);
     this.isDirty = false;
+    this._dirtyVersion = 0;
   }
 
   /**
    * Save memory data to file atomically
    */
   async save() {
-    if (!this.isDirty && this.memory) {
-      return; // No changes to save
-    }
+    this.assertInitialized();
+    if (!this.isDirty) return;
 
-    this.memory.lastUpdated = new Date().toISOString();
-    
-    // Write to temporary file first, then rename for atomicity
-    const tempPath = this.storagePath + '.tmp';
-    const content = JSON.stringify(this.memory, null, 2);
-    
-    await fs.writeFile(tempPath, content, 'utf-8');
-    await fs.rename(tempPath, this.storagePath);
-    
-    this.isDirty = false;
+    const version = this._dirtyVersion;
+    const snapshot = cloneData(this.memory);
+    snapshot.lastUpdated = new Date().toISOString();
+    const tempPath = `${this.storagePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+    const content = JSON.stringify(snapshot, null, 2);
+
+    const operation = this._saveQueue.then(async () => {
+      try {
+        await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
+        await fs.writeFile(tempPath, content, 'utf-8');
+        await fs.rename(tempPath, this.storagePath);
+
+        if (this._dirtyVersion === version) {
+          this.memory.lastUpdated = snapshot.lastUpdated;
+          this.isDirty = false;
+        }
+      } finally {
+        try {
+          await fs.unlink(tempPath);
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+      }
+    });
+
+    this._saveQueue = operation.catch(() => {});
+    return operation;
   }
 
   /**
@@ -102,9 +198,7 @@ class MemoryStorage {
    * @returns {*} The value at the specified path
    */
   get(dotPath) {
-    if (!this.memory) {
-      throw new Error('Memory not initialized. Call initialize() first.');
-    }
+    this.assertInitialized();
 
     const keys = dotPath.split('.');
     let current = this.memory;
@@ -116,7 +210,7 @@ class MemoryStorage {
       current = current[key];
     }
     
-    return current;
+    return cloneData(current);
   }
 
   /**
@@ -125,9 +219,7 @@ class MemoryStorage {
    * @param {*} value - Value to set
    */
   set(dotPath, value) {
-    if (!this.memory) {
-      throw new Error('Memory not initialized. Call initialize() first.');
-    }
+    this.assertInitialized();
 
     const keys = dotPath.split('.');
     let current = this.memory;
@@ -142,8 +234,8 @@ class MemoryStorage {
     }
     
     // Set the final value
-    current[keys[keys.length - 1]] = value;
-    this.isDirty = true;
+    current[keys[keys.length - 1]] = cloneData(value);
+    this.markDirty();
   }
 
   /**
@@ -231,8 +323,10 @@ class MemoryStorage {
    * Clear all memory data
    */
   async clear() {
-    this.memory = { ...DEFAULT_MEMORY };
+    await this.initialize();
+    this.memory = createDefaultMemory();
     this.memory.metadata.createdAt = new Date().toISOString();
+    this.markDirty();
     await this.save();
   }
 
@@ -241,9 +335,7 @@ class MemoryStorage {
    * @returns {Object} Statistics about the memory data
    */
   getStats() {
-    if (!this.memory) {
-      throw new Error('Memory not initialized');
-    }
+    this.assertInitialized();
 
     return {
       totalSessions: this.memory.metadata.totalSessions,
@@ -259,10 +351,8 @@ class MemoryStorage {
    * @returns {Object} Complete memory data
    */
   exportData() {
-    if (!this.memory) {
-      throw new Error('Memory not initialized');
-    }
-    return { ...this.memory };
+    this.assertInitialized();
+    return cloneData(this.memory);
   }
 
   /**
@@ -275,8 +365,9 @@ class MemoryStorage {
       throw new Error('Invalid memory data format');
     }
     
-    this.memory = data;
-    this.isDirty = true;
+    await this.initialize();
+    this.memory = mergeDefaults(DEFAULT_MEMORY, data);
+    this.markDirty();
     await this.save();
   }
 }

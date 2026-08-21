@@ -66,27 +66,31 @@ async function testPluginApply(plugin) {
   const mockCtx = {
     effects: [],
     services: {},
-    subscriptions: [],
+    listeners: [],
     
-    effect(cleanupFn) {
-      this.effects.push(cleanupFn);
+    effect(effectFn) {
+      const cleanup = effectFn();
+      this.effects.push(cleanup);
       return () => {
-        const index = this.effects.indexOf(cleanupFn);
+        const index = this.effects.indexOf(cleanup);
         if (index > -1) this.effects.splice(index, 1);
       };
     },
     
-    subscribe(event, handler) {
-      this.subscriptions.push({ event, handler });
+    on(event, handler) {
+      this.listeners.push({ event, handler });
       return () => {
-        const index = this.subscriptions.findIndex(s => s.event === event && s.handler === handler);
-        if (index > -1) this.subscriptions.splice(index, 1);
+        const index = this.listeners.findIndex(s => s.event === event && s.handler === handler);
+        if (index > -1) this.listeners.splice(index, 1);
       };
     },
     
-    registerService(name, service) {
+    provide(name, service) {
       this.services[name] = service;
-      console.log(`   📝 Service registered: ${name}`);
+      console.log(`   📝 Service provided: ${name}`);
+      return () => {
+        delete this.services[name];
+      };
     }
   };
   
@@ -94,7 +98,7 @@ async function testPluginApply(plugin) {
     // Apply plugin with test config
     const testConfig = {
       storagePath: path.join(__dirname, 'test-install-memory.json'),
-      autoSaveInterval: 100,
+      autoSaveInterval: 5000,
       trackToolCalls: true,
       trackPreferences: true,
       enableRecommendations: true
@@ -140,7 +144,7 @@ async function testPluginApply(plugin) {
       console.log('   ✅ getStats() works');
       
     } else {
-      console.log('   ⚠️  Memory service not registered (optional feature)');
+      throw new Error('Memory service was not provided');
     }
     
     // Cleanup
