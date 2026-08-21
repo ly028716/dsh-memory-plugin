@@ -28,6 +28,18 @@ async function simulateDSHLoading() {
   if (!pkg.dsh || !pkg.dsh.bundle) {
     throw new Error('Missing dsh.bundle declaration in package.json');
   }
+
+  const expectedPatchPath = './cordis.patch.yml';
+  if (pkg.dsh.bundle.patch !== expectedPatchPath) {
+    throw new Error(`Expected dsh.bundle.patch to be ${expectedPatchPath}`);
+  }
+
+  const bundlePatchPath = path.join(__dirname, 'cordis.patch.yml');
+  const bundlePatch = await fs.readFile(bundlePatchPath, 'utf-8');
+  if (!bundlePatch.includes('id: dsh-memory-plugin') ||
+      !bundlePatch.includes('name: dsh-memory-plugin')) {
+    throw new Error('cordis.patch.yml does not insert the dsh-memory-plugin package');
+  }
   
   // Create a mock DSH context (simulating real DSH environment)
   console.log('\n🔧 Step 3: Creating mock DSH context...');

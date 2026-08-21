@@ -3,6 +3,18 @@
   "version": "1.0.0",
   "description": "DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits",
   "main": "index.js",
+  "files": [
+    "config.js",
+    "cordis.patch.yml",
+    "index.js",
+    "memory-manager.js",
+    "storage.js",
+    "README.md",
+    "README.en.md",
+    "USAGE.md",
+    "INSTALL.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
@@ -22,7 +34,7 @@
   },
   "dsh": {
     "bundle": {
-      "patch": "index.js"
+      "patch": "./cordis.patch.yml"
     }
   }
 }
