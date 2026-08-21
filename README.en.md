@@ -215,7 +215,7 @@ Memory data is stored in JSON format:
 - ✅ **User Control** - Can disable any tracking feature
 - ✅ **Data Ownership** - Data belongs entirely to the user, can be exported or deleted anytime
 - ✅ **No Cloud Sync** - All data stored locally only
-- ✅ **Clearable** - One-click to clear all memory data
+- ✅ **Clearable** - Use `ctx.memory.clearMemory()` to clear plugin memory; the viewer button only clears browser cache
 
 ## 🛠️ Project Structure
 

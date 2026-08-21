@@ -176,7 +176,7 @@
                 <div class="actions">
                     <button class="btn" onclick="refreshData()">🔄 刷新数据</button>
                     <button class="btn" onclick="exportData()">💾 导出数据</button>
-                    <button class="btn btn-danger" onclick="clearData()">🗑️ 清除数据</button>
+                    <button class="btn btn-danger" onclick="clearViewerCache()">🧹 清除查看器缓存</button>
                 </div>
                 
                 <div id="dataContent"></div>
@@ -248,6 +248,16 @@
             
             return null;
         }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[character]));
+        }
         
         // 显示数据
         function displayData(data) {
@@ -259,10 +269,10 @@
             html += '<div class="section">';
             html += '<h2 class="section-title">📊 数据概览</h2>';
             html += '<div class="stats-grid">';
-            html += `<div class="stat-card"><div class="label">版本</div><div class="value">${data.version || 'N/A'}</div></div>`;
-            html += `<div class="stat-card"><div class="label">会话数</div><div class="value">${data.metadata?.totalSessions || 0}</div></div>`;
-            html += `<div class="stat-card"><div class="label">项目数</div><div class="value">${(data.projectContext?.activeProjects || []).length}</div></div>`;
-            html += `<div class="stat-card"><div class="label">主题数</div><div class="value">${(data.sessionHistory?.recentTopics || []).length}</div></div>`;
+            html += `<div class="stat-card"><div class="label">版本</div><div class="value">${escapeHtml(data.version || 'N/A')}</div></div>`;
+            html += `<div class="stat-card"><div class="label">会话数</div><div class="value">${escapeHtml(data.metadata?.totalSessions || 0)}</div></div>`;
+            html += `<div class="stat-card"><div class="label">项目数</div><div class="value">${escapeHtml((data.projectContext?.activeProjects || []).length)}</div></div>`;
+            html += `<div class="stat-card"><div class="label">主题数</div><div class="value">${escapeHtml((data.sessionHistory?.recentTopics || []).length)}</div></div>`;
             html += '</div></div>';
             
             // 用户偏好
@@ -270,7 +280,7 @@
                 html += '<div class="section">';
                 html += '<h2 class="section-title">👤 用户偏好</h2>';
                 html += '<div class="data-display">';
-                html += JSON.stringify(data.userPreferences, null, 2);
+                html += escapeHtml(JSON.stringify(data.userPreferences, null, 2));
                 html += '</div></div>';
             }
             
@@ -282,7 +292,7 @@
                 const stats = data.sessionHistory.toolUsageStats;
                 const sorted = Object.entries(stats).sort((a, b) => b[1] - a[1]);
                 sorted.forEach(([tool, count]) => {
-                    html += `${tool}: ${count} 次\n`;
+                    html += `${escapeHtml(tool)}: ${escapeHtml(count)} 次\n`;
                 });
                 html += '</div></div>';
             }
@@ -293,10 +303,10 @@
                 html += '<h2 class="section-title">📁 项目列表</h2>';
                 html += '<div class="data-display">';
                 data.projectContext.activeProjects.forEach(project => {
-                    html += `• ${project.name}\n`;
-                    html += `  路径: ${project.path}\n`;
-                    html += `  标签: ${(project.tags || []).join(', ')}\n`;
-                    html += `  最后访问: ${new Date(project.lastAccessed).toLocaleString('zh-CN')}\n\n`;
+                    html += `• ${escapeHtml(project.name)}\n`;
+                    html += `  路径: ${escapeHtml(project.path)}\n`;
+                    html += `  标签: ${escapeHtml((project.tags || []).join(', '))}\n`;
+                    html += `  最后访问: ${escapeHtml(new Date(project.lastAccessed).toLocaleString('zh-CN'))}\n\n`;
                 });
                 html += '</div></div>';
             }
@@ -307,7 +317,7 @@
                 html += '<h2 class="section-title">💬 最近主题</h2>';
                 html += '<div class="data-display">';
                 data.sessionHistory.recentTopics.slice(0, 10).forEach((topic, i) => {
-                    html += `${i + 1}. ${topic.content} (${new Date(topic.timestamp).toLocaleString('zh-CN')})\n`;
+                    html += `${i + 1}. ${escapeHtml(topic.content)} (${escapeHtml(new Date(topic.timestamp).toLocaleString('zh-CN'))})\n`;
                 });
                 html += '</div></div>';
             }
@@ -316,7 +326,7 @@
             html += '<div class="section">';
             html += '<h2 class="section-title">📦 完整数据（JSON）</h2>';
             html += '<div class="data-display">';
-            html += JSON.stringify(data, null, 2);
+            html += escapeHtml(JSON.stringify(data, null, 2));
             html += '</div></div>';
             
             contentEl.innerHTML = html;
@@ -346,12 +356,14 @@
             alert('✅ 数据已导出！');
         }
         
-        // 清除数据
-        function clearData() {
-            if (confirm('⚠️ 确定要清除所有记忆数据吗？此操作不可恢复！')) {
+        // 清除查看器缓存；不会修改插件的 .dsh-memory.json 文件
+        function clearViewerCache() {
+            if (confirm('⚠️ 确定要清除查看器缓存吗？原始记忆文件不会被修改。')) {
                 localStorage.removeItem('memory-plugin-data');
-                alert('✅ 数据已清除！请刷新页面。');
-                location.reload();
+                currentData = null;
+                document.getElementById('dataContent').textContent = '';
+                document.getElementById('content').style.display = 'none';
+                alert('✅ 查看器缓存已清除；原始记忆文件未修改。');
             }
         }
     </script>
