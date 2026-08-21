@@ -83,6 +83,13 @@ memoryPlugin.apply(ctx, {
 });
 ```
 
+Initialization is asynchronous. Await `ctx.memory.ready` before the first read that needs persisted data; write APIs wait for initialization automatically:
+
+```javascript
+await ctx.memory.ready;
+const stats = ctx.memory.getStats();
+```
+
 ### Basic Usage
 
 The plugin does not collect data by default. Explicitly set the corresponding tracking toggle to `true` to opt in, or manage collection through the API:

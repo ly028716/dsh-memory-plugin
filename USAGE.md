@@ -242,9 +242,11 @@ const allPreferences = ctx.memory.storage.get('userPreferences');
 const toolStats = ctx.memory.storage.get('sessionHistory.toolUsageStats');
 
 // 设置任意路径的数据
-ctx.memory.storage.set('userPreferences.customSetting', 'value');
-ctx.memory.storage.set('metadata.customField', { nested: 'data' });
+await ctx.memory.storage.set('userPreferences.customSetting', 'value');
+await ctx.memory.storage.set('metadata.customField', { nested: 'data' });
 ```
+
+高级存储写入同样会经过敏感数据脱敏和路径安全校验；首次使用前建议等待 `await ctx.memory.ready`。
 
 ### 批量操作
 

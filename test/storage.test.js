@@ -102,6 +102,12 @@ describe('MemoryStorage', () => {
       expect(theme).toBe('dark');
     });
 
+    test('should reject prototype pollution paths', () => {
+      expect(() => storage.set('__proto__.polluted', 'yes')).toThrow('Unsafe storage path');
+      expect(() => storage.get('constructor.prototype')).toThrow('Unsafe storage path');
+      expect({}).not.toHaveProperty('polluted');
+    });
+
     test('should mark as dirty when setting values', () => {
       expect(storage.isDirty).toBe(false);
       storage.set('userPreferences.language', 'zh-CN');
@@ -150,6 +156,43 @@ describe('MemoryStorage', () => {
       const reloaded = new MemoryStorage(testFile);
       await reloaded.initialize();
       expect(reloaded.get('userPreferences.defaultModel')).toBe('concurrent-model');
+    });
+
+    test('should recover from a stale lock and leave no lock file', async () => {
+      const lockPath = `${testFile}.lock`;
+      await fs.writeFile(lockPath, 'stale');
+      const staleDate = new Date(Date.now() - 60000);
+      await fs.utimes(lockPath, staleDate, staleDate);
+
+      storage.set('userPreferences.defaultModel', 'stale-lock-recovered');
+      await storage.save();
+
+      expect(await fs.readFile(testFile, 'utf8')).toContain('stale-lock-recovered');
+      await expect(fs.access(lockPath)).rejects.toThrow();
+    });
+
+    test('should serialize saves from separate storage instances into valid JSON', async () => {
+      const first = new MemoryStorage(testFile);
+      const second = new MemoryStorage(testFile);
+      await Promise.all([first.initialize(), second.initialize()]);
+
+      first.set('userPreferences.first', 'one');
+      second.set('userPreferences.second', 'two');
+      await Promise.all([first.save(), second.save()]);
+
+      const content = await fs.readFile(testFile, 'utf8');
+      expect(() => JSON.parse(content)).not.toThrow();
+      const data = JSON.parse(content);
+      expect(data.userPreferences.first).toBe('one');
+      expect(data.userPreferences.second).toBe('two');
+      await expect(fs.access(`${testFile}.lock`)).rejects.toThrow();
+    });
+
+    test('should restrict persisted file permissions on supported platforms', async () => {
+      if (process.platform === 'win32') return;
+
+      const mode = (await fs.stat(testFile)).mode & 0o777;
+      expect(mode).toBe(0o600);
     });
   });
 

@@ -56,4 +56,36 @@ describe('default collection policy', () => {
     expect(context.services.memory.exportData().sessionHistory.recentTopics).toEqual([]);
     expect(context.services.memory.exportData().projectContext.activeProjects).toEqual([]);
   });
+
+  test('keeps the service safe while asynchronous initialization is pending', async () => {
+    plugin.apply(context, {
+      storagePath: testFile,
+      autoSaveInterval: 100,
+      trackPreferences: true
+    });
+
+    expect(context.services.memory.ready).toBeDefined();
+    expect(() => context.services.memory.getStats()).not.toThrow();
+
+    const pendingWrite = context.services.memory.setPreference('defaultModel', 'ready-model');
+    await context.services.memory.ready;
+    await pendingWrite;
+
+    expect(context.services.memory.getPreference('defaultModel')).toBe('ready-model');
+  });
+
+  test('sanitizes explicit storage writes through the public service', async () => {
+    plugin.apply(context, {
+      storagePath: testFile,
+      autoSaveInterval: 100
+    });
+
+    await context.services.memory.ready;
+    await context.services.memory.storage.set('inputHabits.commonCommands', [
+      { command: 'deploy --api-key=PUBLIC_SERVICE_SECRET' }
+    ]);
+
+    const serialized = await fs.readFile(testFile, 'utf8');
+    expect(serialized).not.toContain('PUBLIC_SERVICE_SECRET');
+  });
 });

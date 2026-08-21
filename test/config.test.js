@@ -34,11 +34,15 @@ describe('Config Validation', () => {
   test('should throw error for invalid maxHistoryItems', () => {
     expect(() => validateConfig({ maxHistoryItems: -1 })).toThrow('maxHistoryItems must be a positive number');
     expect(() => validateConfig({ maxHistoryItems: '100' })).toThrow('maxHistoryItems must be a positive number');
+    expect(() => validateConfig({ maxHistoryItems: 1.5 })).toThrow('maxHistoryItems must be a positive integer');
+    expect(() => validateConfig({ maxHistoryItems: Infinity })).toThrow('maxHistoryItems must be a finite number');
   });
 
   test('should throw error for invalid autoSaveInterval', () => {
     expect(() => validateConfig({ autoSaveInterval: 0 })).toThrow('autoSaveInterval must be a positive number');
     expect(() => validateConfig({ autoSaveInterval: '5000' })).toThrow('autoSaveInterval must be a positive number');
+    expect(() => validateConfig({ autoSaveInterval: NaN })).toThrow('autoSaveInterval must be a finite number');
+    expect(() => validateConfig({ autoSaveInterval: Infinity })).toThrow('autoSaveInterval must be a finite number');
   });
 
   test('should throw error for invalid boolean flags', () => {
@@ -49,6 +53,7 @@ describe('Config Validation', () => {
   test('should throw error for invalid patternRecognitionThreshold', () => {
     expect(() => validateConfig({ patternRecognitionThreshold: 0 })).toThrow('patternRecognitionThreshold must be a positive number');
     expect(() => validateConfig({ patternRecognitionThreshold: -1 })).toThrow('patternRecognitionThreshold must be a positive number');
+    expect(() => validateConfig({ patternRecognitionThreshold: 1.5 })).toThrow('patternRecognitionThreshold must be a positive integer');
   });
 
   test('should accept valid boolean values', () => {

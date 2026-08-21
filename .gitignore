@@ -4,9 +4,11 @@ node_modules/
 # Test data files
 *.json
 !package.json
+!package-lock.json
 
 # Temporary files
 *.tmp
+*.json.lock
 *.bak
 
 # OS files

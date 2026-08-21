@@ -5,6 +5,53 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const { redactSensitiveData } = require('./privacy');
+
+const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
+const LOCK_RETRY_INTERVAL_MS = 25;
+const LOCK_TIMEOUT_MS = 5000;
+const LOCK_STALE_AFTER_MS = 30000;
+
+function parseDotPath(dotPath) {
+  if (typeof dotPath !== 'string' || dotPath.trim() === '') {
+    throw new Error('Storage path must be a non-empty string');
+  }
+
+  const keys = dotPath.split('.');
+  if (keys.some((key) => key === '' || UNSAFE_PATH_SEGMENTS.has(key))) {
+    throw new Error(`Unsafe storage path: ${dotPath}`);
+  }
+
+  return keys;
+}
+
+function assertSafeKey(key) {
+  if (UNSAFE_PATH_SEGMENTS.has(key)) {
+    throw new Error(`Unsafe memory key: ${key}`);
+  }
+}
+
+function getPathValue(value, dotPath) {
+  let current = value;
+  for (const key of parseDotPath(dotPath)) {
+    if (current === null || current === undefined || typeof current !== 'object') return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+function setPathValue(value, dotPath, nestedValue) {
+  const keys = parseDotPath(dotPath);
+  let current = value;
+  for (let index = 0; index < keys.length - 1; index += 1) {
+    const key = keys[index];
+    if (!current[key] || typeof current[key] !== 'object' || Array.isArray(current[key])) {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  current[keys[keys.length - 1]] = cloneData(nestedValue);
+}
 
 /**
  * Default memory structure
@@ -63,6 +110,7 @@ function mergeDefaults(defaults, value) {
     }
 
     for (const key of Object.keys(source)) {
+      assertSafeKey(key);
       if (!(key in defaults)) {
         result[key] = cloneData(source[key]);
       }
@@ -93,6 +141,57 @@ class MemoryStorage {
     this._dirtyVersion = 0;
     this._initializePromise = null;
     this._saveQueue = Promise.resolve();
+    this.lockPath = `${this.storagePath}.lock`;
+    this._dirtyPaths = new Set();
+    this._replaceOnSave = false;
+  }
+
+  async acquireLock() {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < LOCK_TIMEOUT_MS) {
+      try {
+        const handle = await fs.open(this.lockPath, 'wx');
+        try {
+          await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }), 'utf8');
+        } finally {
+          await handle.close();
+        }
+        return;
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+
+        try {
+          const lockStat = await fs.stat(this.lockPath);
+          if (Date.now() - lockStat.mtimeMs > LOCK_STALE_AFTER_MS) {
+            await fs.unlink(this.lockPath);
+            continue;
+          }
+        } catch (statError) {
+          if (statError.code !== 'ENOENT') throw statError;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_INTERVAL_MS));
+      }
+    }
+
+    throw new Error(`Timed out waiting for storage lock: ${this.lockPath}`);
+  }
+
+  async releaseLock() {
+    try {
+      await fs.unlink(this.lockPath);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+
+  async setPrivateFileMode(filePath) {
+    try {
+      await fs.chmod(filePath, 0o600);
+    } catch (error) {
+      if (process.platform !== 'win32' || !['EPERM', 'ENOSYS'].includes(error.code)) throw error;
+    }
   }
 
   assertInitialized() {
@@ -101,9 +200,14 @@ class MemoryStorage {
     }
   }
 
-  markDirty() {
+  markDirty(dotPath = null) {
     this.isDirty = true;
     this._dirtyVersion += 1;
+    if (dotPath === null) {
+      this._replaceOnSave = true;
+    } else {
+      this._dirtyPaths.add(dotPath);
+    }
   }
 
   /**
@@ -135,6 +239,8 @@ class MemoryStorage {
       this.memory = null;
       this.isDirty = false;
       this._dirtyVersion = 0;
+      this._dirtyPaths.clear();
+      this._replaceOnSave = false;
       throw error;
     } finally {
       this._initializePromise = null;
@@ -151,9 +257,13 @@ class MemoryStorage {
       throw new Error('Invalid memory data format');
     }
 
-    this.memory = mergeDefaults(DEFAULT_MEMORY, parsed);
-    this.isDirty = false;
+    const sanitized = redactSensitiveData(parsed);
+    this.memory = mergeDefaults(DEFAULT_MEMORY, sanitized);
+    this.isDirty = JSON.stringify(sanitized) !== JSON.stringify(parsed);
     this._dirtyVersion = 0;
+    this._dirtyPaths.clear();
+    this._replaceOnSave = this.isDirty;
+    if (this.isDirty) await this.save();
   }
 
   /**
@@ -166,18 +276,46 @@ class MemoryStorage {
     const version = this._dirtyVersion;
     const snapshot = cloneData(this.memory);
     snapshot.lastUpdated = new Date().toISOString();
+    const dirtyPaths = [...this._dirtyPaths];
+    const replaceOnSave = this._replaceOnSave;
     const tempPath = `${this.storagePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
-    const content = JSON.stringify(snapshot, null, 2);
 
     const operation = this._saveQueue.then(async () => {
+      await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
+      await this.acquireLock();
       try {
-        await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
-        await fs.writeFile(tempPath, content, 'utf-8');
+        let persistedSnapshot = snapshot;
+        if (!replaceOnSave) {
+          try {
+            const latestContent = await fs.readFile(this.storagePath, 'utf8');
+            const latestParsed = JSON.parse(latestContent);
+            persistedSnapshot = mergeDefaults(DEFAULT_MEMORY, latestParsed);
+            for (const dirtyPath of dirtyPaths) {
+              setPathValue(persistedSnapshot, dirtyPath, getPathValue(snapshot, dirtyPath));
+            }
+            persistedSnapshot.lastUpdated = snapshot.lastUpdated;
+          } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+          }
+        }
+
+        const content = JSON.stringify(persistedSnapshot, null, 2);
+        const handle = await fs.open(tempPath, 'w', 0o600);
+        try {
+          await handle.writeFile(content, 'utf8');
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+        await this.setPrivateFileMode(tempPath);
         await fs.rename(tempPath, this.storagePath);
+        await this.setPrivateFileMode(this.storagePath);
 
         if (this._dirtyVersion === version) {
-          this.memory.lastUpdated = snapshot.lastUpdated;
+          this.memory = cloneData(persistedSnapshot);
           this.isDirty = false;
+          this._dirtyPaths.clear();
+          this._replaceOnSave = false;
         }
       } finally {
         try {
@@ -185,6 +323,7 @@ class MemoryStorage {
         } catch (error) {
           if (error.code !== 'ENOENT') throw error;
         }
+        await this.releaseLock();
       }
     });
 
@@ -200,7 +339,7 @@ class MemoryStorage {
   get(dotPath) {
     this.assertInitialized();
 
-    const keys = dotPath.split('.');
+    const keys = parseDotPath(dotPath);
     let current = this.memory;
     
     for (const key of keys) {
@@ -221,21 +360,24 @@ class MemoryStorage {
   set(dotPath, value) {
     this.assertInitialized();
 
-    const keys = dotPath.split('.');
+    const keys = parseDotPath(dotPath);
     let current = this.memory;
     
     // Navigate to the parent object
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
-      if (!(key in current)) {
+      if (!current || typeof current !== 'object') {
+        throw new Error(`Cannot set nested storage path: ${dotPath}`);
+      }
+      if (!Object.prototype.hasOwnProperty.call(current, key)) {
         current[key] = {};
       }
       current = current[key];
     }
     
     // Set the final value
-    current[keys[keys.length - 1]] = cloneData(value);
-    this.markDirty();
+    current[keys[keys.length - 1]] = cloneData(redactSensitiveData(value));
+    this.markDirty(dotPath);
   }
 
   /**
@@ -361,15 +503,15 @@ class MemoryStorage {
    */
   async importData(data) {
     // Basic validation
-    if (!data.version || !data.metadata) {
+    if (!data || typeof data !== 'object' || Array.isArray(data) || !data.version || !data.metadata) {
       throw new Error('Invalid memory data format');
     }
     
     await this.initialize();
-    this.memory = mergeDefaults(DEFAULT_MEMORY, data);
+    this.memory = mergeDefaults(DEFAULT_MEMORY, redactSensitiveData(data));
     this.markDirty();
     await this.save();
   }
 }
 
-module.exports = { MemoryStorage, DEFAULT_MEMORY };
+module.exports = { MemoryStorage, DEFAULT_MEMORY, cloneData, parseDotPath };

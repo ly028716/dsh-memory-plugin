@@ -48,6 +48,23 @@ describe('privacy redaction', () => {
     expect(value).not.toContain('url-secret');
   });
 
+  test('redacts common authentication command variants', () => {
+    const value = redactSensitiveData(
+      'curl -u user:basic-secret npm config set //registry.example/:_authToken npm-secret'
+    );
+
+    expect(value).not.toContain('basic-secret');
+    expect(value).not.toContain('npm-secret');
+    expect(value).toContain('[REDACTED]');
+  });
+
+  test('redacts access key environment variants', () => {
+    const value = redactSensitiveData('AWS_ACCESS_KEY_ID=aws-secret AWS_SECRET_ACCESS_KEY=secret-key');
+
+    expect(value).not.toContain('aws-secret');
+    expect(value).not.toContain('secret-key');
+  });
+
   test('masks usernames in common absolute user paths', () => {
     expect(redactProjectPath('C:\\Users\\Alice\\repo')).toBe('C:\\Users\\[USER]\\repo');
     expect(redactProjectPath('/home/alice/repo')).toBe('/home/[USER]/repo');

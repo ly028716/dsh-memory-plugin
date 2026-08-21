@@ -8,18 +8,28 @@
 
 const REDACTED = '[REDACTED]';
 
-const SENSITIVE_KEY_PATTERN = /(?:api[-_]?key|access[-_]?key|token|secret|password|passwd|pwd|authorization|credential|cookie|private[-_]?key|client[-_]?secret)/i;
-const CLI_SENSITIVE_NAME_PATTERN = /^(?:api[-_]?key|access[-_]?key|access[-_]?token|auth(?:orization)?|token|secret|password|passwd|pwd|client[-_]?secret|private[-_]?key)$/i;
-const ENV_SENSITIVE_NAME_PATTERN = /(?:KEY|TOKEN|SECRET|PASSWORD|PASS|PWD|CREDENTIAL|PRIVATE_KEY)$/i;
+const SENSITIVE_KEY_PATTERN = /(?:api[-_]?key|access[-_]?key|token|secret|password|passwd|pwd|authorization|credential|cookie|private[-_]?key|client[-_]?secret|auth)/i;
+const CLI_SENSITIVE_NAME_PATTERN = /^(?:api[-_]?key|access[-_]?key|access[-_]?token|auth(?:orization)?|auth[-_]?(?:token|password)|token|secret|password|passwd|pwd|client[-_]?secret|private[-_]?key)$/i;
+const ENV_SENSITIVE_NAME_PATTERN = /(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASS|PWD|CREDENTIAL|PRIVATE[_-]?KEY)/i;
 
 function redactString(value) {
   return value
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, REDACTED)
+    .replace(/\b((?:[A-Z][A-Z0-9]*_)*(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASS|PWD|CREDENTIAL|PRIVATE[_-]?KEY)(?:_[A-Z0-9]+)*)(\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"';&|]+))/g, (match, name, separator, doubleQuoted, singleQuoted) => {
+      if (!ENV_SENSITIVE_NAME_PATTERN.test(name)) return match;
+      const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
+      return `${name}${separator}${quote}${REDACTED}${quote}`;
+    })
     .replace(/([?&](?:api[-_]?key|access[-_]?key|access[-_]?token|token|secret|password|passwd|pwd|authorization|credential)\s*=\s*)([^&#\s]+)/gi, `$1${REDACTED}`)
     .replace(/((?:https?|ftp):\/\/[^/\s:@]+:)([^@\s]+)(@)/gi, `$1${REDACTED}$3`)
+    .replace(/((?:--user(?:name)?|-u)\s+)([^:\s]+:)([^\s"';&|]+)/gi, `$1$2${REDACTED}`)
     .replace(/(\b(?:authorization\s*:\s*)?bearer\s+)([^\s,;]+)/gi, `$1${REDACTED}`)
     .replace(/(\bauthorization\s*:\s*)(?!bearer\s+)([^\s,;]+)/gi, `$1${REDACTED}`)
-    .replace(/(\b(?:api[-_ ]?key|access[-_ ]?token|token|secret|password|passwd|pwd))(\s*(?:[:=]|\s)\s*)(?:"([^"]*)"|'([^']*)'|([A-Za-z0-9._~+/=-]+))/gi, (match, name, separator, doubleQuoted, singleQuoted) => {
+    .replace(/((?:_authToken|_authPassword|authToken|authPassword)\s*(?:[:=]|\s)\s*)(?:"([^"]*)"|'([^']*)'|([^\s"';&|]+))/gi, (match, prefix, doubleQuoted, singleQuoted) => {
+      const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
+      return `${prefix}${quote}${REDACTED}${quote}`;
+    })
+    .replace(/(\b(?:api[-_ ]?key|access[-_ ]?token|token|secret|password|passwd|pwd|auth|auth[-_ ]?(?:token|password)))(\s*(?:[:=]|\s)\s*)(?:"([^"]*)"|'([^']*)'|([A-Za-z0-9._~+/=-]+))/gi, (match, name, separator, doubleQuoted, singleQuoted) => {
       const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
       return `${name}${separator}${quote}${REDACTED}${quote}`;
     })
@@ -28,12 +38,7 @@ function redactString(value) {
       const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
       return `${prefix}${quote}${REDACTED}${quote}`;
     })
-    .replace(/\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASS|PWD|CREDENTIAL|PRIVATE_KEY))(\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"';&|]+))/g, (match, name, separator, doubleQuoted, singleQuoted) => {
-      if (!ENV_SENSITIVE_NAME_PATTERN.test(name)) return match;
-      const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
-      return `${name}${separator}${quote}${REDACTED}${quote}`;
-    })
-    .replace(/(["']?(?:api[-_]?key|access[-_]?key|access[-_]?token|token|secret|password|passwd|pwd|credential|private[-_]?key)["']?\s*[:=]\s*["']?)([^"',}\s]+)/gi, `$1${REDACTED}`);
+    .replace(/(?<![A-Za-z0-9_])(["']?(?:api[-_]?key|access[-_]?key|access[-_]?token|token|secret|password|passwd|pwd|credential|private[-_]?key|auth(?:[-_ ]?(?:token|password))?)["']?\s*[:=]\s*["']?)([^"',}\s]+)/gi, `$1${REDACTED}`);
 }
 
 function redactSensitiveData(value, seen = new WeakMap()) {

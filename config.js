@@ -30,20 +30,42 @@ const DEFAULT_CONFIG = {
  * @returns {Object} Validated configuration with defaults applied
  */
 function validateConfig(userConfig = {}) {
+  if (!userConfig || typeof userConfig !== 'object' || Array.isArray(userConfig)) {
+    throw new Error('userConfig must be an object');
+  }
+
   const config = { ...DEFAULT_CONFIG, ...userConfig };
   
   // Validate storagePath
-  if (typeof config.storagePath !== 'string' || config.storagePath.trim() === '') {
+  if (typeof config.storagePath !== 'string' || config.storagePath.trim() === '' || config.storagePath.includes('\0')) {
     throw new Error('storagePath must be a non-empty string');
   }
   
   // Validate maxHistoryItems
-  if (typeof config.maxHistoryItems !== 'number' || config.maxHistoryItems <= 0) {
+  if (typeof config.maxHistoryItems !== 'number') {
     throw new Error('maxHistoryItems must be a positive number');
+  }
+  if (!Number.isFinite(config.maxHistoryItems)) {
+    throw new Error('maxHistoryItems must be a finite number');
+  }
+  if (config.maxHistoryItems <= 0) {
+    throw new Error('maxHistoryItems must be a positive number');
+  }
+  if (!Number.isSafeInteger(config.maxHistoryItems)) {
+    throw new Error('maxHistoryItems must be a positive integer');
+  }
+  if (config.maxHistoryItems > 10000) {
+    throw new Error('maxHistoryItems must not exceed 10000');
   }
   
   // Validate autoSaveInterval
-  if (typeof config.autoSaveInterval !== 'number' || config.autoSaveInterval <= 0) {
+  if (typeof config.autoSaveInterval !== 'number') {
+    throw new Error('autoSaveInterval must be a positive number');
+  }
+  if (!Number.isFinite(config.autoSaveInterval)) {
+    throw new Error('autoSaveInterval must be a finite number');
+  }
+  if (config.autoSaveInterval <= 0) {
     throw new Error('autoSaveInterval must be a positive number');
   }
   
@@ -65,8 +87,17 @@ function validateConfig(userConfig = {}) {
   }
   
   // Validate patternRecognitionThreshold
-  if (typeof config.patternRecognitionThreshold !== 'number' || config.patternRecognitionThreshold <= 0) {
+  if (typeof config.patternRecognitionThreshold !== 'number') {
     throw new Error('patternRecognitionThreshold must be a positive number');
+  }
+  if (!Number.isFinite(config.patternRecognitionThreshold)) {
+    throw new Error('patternRecognitionThreshold must be a finite number');
+  }
+  if (config.patternRecognitionThreshold <= 0) {
+    throw new Error('patternRecognitionThreshold must be a positive number');
+  }
+  if (!Number.isSafeInteger(config.patternRecognitionThreshold)) {
+    throw new Error('patternRecognitionThreshold must be a positive integer');
   }
   
   return config;

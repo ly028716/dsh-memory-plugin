@@ -18,6 +18,10 @@
   ],
   "scripts": {
     "test": "jest",
+    "test:integration": "node test-integration.js",
+    "test:install": "node test-install.js",
+    "test:quick": "node test-quick.js",
+    "check": "node --check index.js && node --check config.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

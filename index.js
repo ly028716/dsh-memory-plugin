@@ -15,6 +15,7 @@
 const { validateConfig } = require('./config');
 const { MemoryStorage } = require('./storage');
 const { MemoryManager } = require('./memory-manager');
+const { redactSensitiveData } = require('./privacy');
 
 module.exports = {
   name: 'memory',
@@ -56,9 +57,6 @@ module.exports = {
         initializationPromise = (async () => {
           try {
             await memoryManager.initialize();
-            isInitialized = true;
-            console.log('Memory system initialized successfully');
-
             // Record current working directory as project context
             const cwd = process.cwd();
             await memoryManager.recordProjectContext({
@@ -66,8 +64,11 @@ module.exports = {
               name: cwd.split(/[\\/]/).pop() || cwd,
               tags: ['current-workspace']
             });
+            isInitialized = true;
+            console.log('Memory system initialized successfully');
           } catch (error) {
             console.error('Memory plugin: Initialization failed:', error.message);
+            throw error;
           } finally {
             initializationPromise = null;
           }
@@ -81,11 +82,8 @@ module.exports = {
         // Cordis event listeners are lifecycle-bound effects and are removed
         // automatically when the plugin unloads.
         ctx.on('tools/result', async (exec, result) => {
-          if (!isInitialized) {
-            await initializeMemory();
-          }
-          
           try {
+            await initializeMemory();
             await memoryManager.recordToolCall({
               name: exec.name,
               args: exec.arguments,
@@ -106,10 +104,14 @@ module.exports = {
       });
       
       // Expose memory manager API through context for other plugins/features
+      const ready = initializeMemory();
+
       ctx.provide('memory', {
+        ready,
+
         // Preference management
         setPreference: (key, value) => memoryManager.recordPreference(key, value),
-        getPreference: (key) => storage.get(`userPreferences.${key}`),
+        getPreference: (key) => storage.memory ? storage.get(`userPreferences.${key}`) : undefined,
 
         // Session tracking
         recordTopic: (topic) => memoryManager.recordSessionItem('topic', topic),
@@ -131,13 +133,23 @@ module.exports = {
 
         // Direct storage access (advanced)
         storage: {
-          get: (path) => storage.get(path),
-          set: (path, value) => storage.set(path, value)
+          get: (path) => storage.memory ? storage.get(path) : undefined,
+          set: (path, value) => {
+            const safeValue = redactSensitiveData(value);
+            if (storage.memory) {
+              storage.set(path, safeValue);
+              return storage.save();
+            }
+            return ready.then(() => {
+              storage.set(path, safeValue);
+              return storage.save();
+            });
+          },
+          save: () => ready.then(() => storage.save())
         }
       });
-      
-      // Initialize on first use
-      initializeMemory().catch(error => {
+
+      ready.catch(error => {
         console.error('Memory plugin: Async initialization failed:', error.message);
       });
       

@@ -68,6 +68,17 @@ describe('MemoryManager', () => {
       expect(concurrentStorage.get('metadata.totalSessions')).toBe(1);
       await concurrentManager.dispose();
     });
+
+    test('should wait for initialization before recording data', async () => {
+      const pendingStorage = new MemoryStorage(testFile + '-pending');
+      const pendingManager = new MemoryManager(config, pendingStorage);
+      const pendingWrite = pendingManager.recordPreference('defaultModel', 'pending-model');
+
+      await pendingWrite;
+
+      expect(pendingStorage.get('userPreferences.defaultModel')).toBe('pending-model');
+      await pendingManager.dispose();
+    });
   });
 
   describe('Tool Call Recording', () => {
@@ -356,6 +367,34 @@ describe('MemoryManager', () => {
       await manager.importData(importData);
       const value = storage.get('userPreferences.imported');
       expect(value).toBe(true);
+    });
+
+    test('should redact sensitive values during import', async () => {
+      await manager.importData({
+        version: '1.0.0',
+        metadata: { createdAt: new Date().toISOString() },
+        inputHabits: {
+          commonCommands: [{ command: 'deploy --api-key=IMPORTED_SECRET', count: 1 }]
+        }
+      });
+
+      const serialized = JSON.stringify(manager.exportData());
+      const persisted = await fs.readFile(testFile, 'utf8');
+
+      expect(serialized).not.toContain('IMPORTED_SECRET');
+      expect(persisted).not.toContain('IMPORTED_SECRET');
+    });
+
+    test('should reject prototype pollution paths', async () => {
+      expect(() => storage.set('__proto__.polluted', 'yes')).toThrow('Unsafe storage path');
+      expect(() => storage.get('constructor.prototype')).toThrow('Unsafe storage path');
+      expect({}).not.toHaveProperty('polluted');
+    });
+
+    test('should validate public input boundaries', async () => {
+      await expect(manager.recordPreference('__proto__.polluted', 'yes')).rejects.toThrow('Unsafe storage path');
+      await expect(manager.recordProjectContext({})).rejects.toThrow('projectInfo.path must be a non-empty string');
+      await expect(manager.recordSessionItem('unknown', 'value')).rejects.toThrow('session item type must be topic or task');
     });
 
     test('should clear memory when allowed', async () => {

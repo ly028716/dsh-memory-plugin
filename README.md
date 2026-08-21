@@ -83,6 +83,13 @@ memoryPlugin.apply(ctx, {
 });
 ```
 
+插件初始化是异步的。首次读取持久化数据前可等待 `ctx.memory.ready`；写入 API 会自动等待初始化完成：
+
+```javascript
+await ctx.memory.ready;
+const stats = ctx.memory.getStats();
+```
+
 ### 基本使用
 
 插件默认不会自动采集数据；如需启用，请在配置中显式设置对应的追踪开关为 `true`，也可以通过 API 主动管理：

@@ -3,7 +3,7 @@
  * Core logic for tracking, analyzing, and managing user memory data.
  */
 
-const { MemoryStorage } = require('./storage');
+const { MemoryStorage, DEFAULT_MEMORY, cloneData, parseDotPath } = require('./storage');
 const path = require('path');
 const { redactSensitiveData, redactProjectPath } = require('./privacy');
 
@@ -45,6 +45,10 @@ class MemoryManager {
     }
   }
 
+  async ensureInitialized() {
+    await this.initialize();
+  }
+
   /**
    * Start automatic saving at configured intervals
    */
@@ -79,6 +83,12 @@ class MemoryManager {
   async recordToolCall(toolCall) {
     if (!this.config.trackToolCalls) return;
 
+    if (!toolCall || typeof toolCall !== 'object' || typeof toolCall.name !== 'string' || toolCall.name.trim() === '') {
+      throw new Error('toolCall.name must be a non-empty string');
+    }
+
+    await this.ensureInitialized();
+
     const { name, args, result } = toolCall;
     
     // Record tool usage statistics
@@ -105,6 +115,11 @@ class MemoryManager {
    * @param {string} command - The command that was executed
    */
   async analyzeCommand(command) {
+    if (typeof command !== 'string') {
+      throw new Error('command must be a string');
+    }
+
+    await this.ensureInitialized();
     const safeCommand = redactSensitiveData(command);
     const commonCommands = this.storage.get('inputHabits.commonCommands') || [];
     
@@ -142,6 +157,13 @@ class MemoryManager {
    */
   async recordPreference(preferenceKey, value) {
     if (!this.config.trackPreferences) return;
+
+    if (typeof preferenceKey !== 'string' || preferenceKey.trim() === '') {
+      throw new Error('preferenceKey must be a non-empty string');
+    }
+
+    parseDotPath(`userPreferences.${preferenceKey}`);
+    await this.ensureInitialized();
     
     this.storage.set(`userPreferences.${preferenceKey}`, redactSensitiveData(value));
     await this.storage.save();
@@ -153,6 +175,24 @@ class MemoryManager {
    */
   async recordProjectContext(projectInfo) {
     if (!this.config.trackProjectContext) return;
+
+    if (!projectInfo || typeof projectInfo !== 'object' || Array.isArray(projectInfo)) {
+      throw new Error('projectInfo must be an object');
+    }
+
+    if (typeof projectInfo.path !== 'string' || projectInfo.path.trim() === '') {
+      throw new Error('projectInfo.path must be a non-empty string');
+    }
+
+    if (projectInfo.name !== undefined && typeof projectInfo.name !== 'string') {
+      throw new Error('projectInfo.name must be a string');
+    }
+
+    if (projectInfo.tags !== undefined && (!Array.isArray(projectInfo.tags) || projectInfo.tags.some((tag) => typeof tag !== 'string'))) {
+      throw new Error('projectInfo.tags must be an array of strings');
+    }
+
+    await this.ensureInitialized();
     
     const safeProjectInfo = redactSensitiveData(projectInfo);
     safeProjectInfo.path = redactProjectPath(safeProjectInfo.path);
@@ -171,6 +211,16 @@ class MemoryManager {
    */
   async recordSessionItem(type, content) {
     if (!this.config.trackSessionHistory) return;
+
+    if (type !== 'topic' && type !== 'task') {
+      throw new Error('session item type must be topic or task');
+    }
+
+    if (typeof content !== 'string') {
+      throw new Error('session item content must be a string');
+    }
+
+    await this.ensureInitialized();
     
     const path = type === 'topic' 
       ? 'sessionHistory.recentTopics'
@@ -196,6 +246,8 @@ class MemoryManager {
       available: true,
       suggestions: []
     };
+
+    if (!this.storage.memory) return recommendations;
 
     // Recommend preferred agents
     const preferredAgents = this.storage.get('userPreferences.preferredAgents') || [];
@@ -245,6 +297,16 @@ class MemoryManager {
    * @returns {Object} Statistics
    */
   getStats() {
+    if (!this.storage.memory) {
+      return {
+        totalSessions: 0,
+        lastUpdated: null,
+        trackedTools: 0,
+        activeProjects: 0,
+        preferredAgents: 0
+      };
+    }
+
     return this.storage.getStats();
   }
 
@@ -253,6 +315,8 @@ class MemoryManager {
    * @returns {Object} Complete memory data
    */
   exportData() {
+    if (!this.storage.memory) return cloneData(DEFAULT_MEMORY);
+
     return this.storage.exportData();
   }
 
@@ -261,7 +325,8 @@ class MemoryManager {
    * @param {Object} data - Memory data to import
    */
   async importData(data) {
-    await this.storage.importData(data);
+    await this.ensureInitialized();
+    await this.storage.importData(redactSensitiveData(data));
   }
 
   /**
