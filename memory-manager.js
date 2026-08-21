@@ -269,22 +269,42 @@ class MemoryManager {
       });
     }
 
-    // Recommend common commands
+    const contextTokens = typeof context === 'string'
+      ? context.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      : [];
+    const matchesContext = (value) => {
+      if (contextTokens.length === 0) return true;
+      const text = String(value || '').toLowerCase();
+      return contextTokens.some((token) => text.includes(token));
+    };
+
+    // Recommend common commands that have reached the recognition threshold
     const commonCommands = this.storage.get('inputHabits.commonCommands') || [];
-    if (commonCommands.length > 0) {
+    const frequentCommands = commonCommands.filter((command) => (
+      Number.isFinite(command.count) && command.count >= this.config.patternRecognitionThreshold
+    ));
+    const contextualCommands = frequentCommands.filter((command) => matchesContext(command.command));
+    const commandsToRecommend = contextualCommands.length > 0 ? contextualCommands : frequentCommands;
+    if (commandsToRecommend.length > 0) {
       recommendations.suggestions.push({
         type: 'commands',
-        items: commonCommands.slice(0, 5).map(cmd => cmd.command),
+        items: commandsToRecommend.slice(0, 5).map(cmd => cmd.command),
         reason: 'Frequently used commands'
       });
     }
 
     // Recommend projects
     const activeProjects = this.storage.get('projectContext.activeProjects') || [];
-    if (activeProjects.length > 0) {
+    const contextualProjects = activeProjects.filter((project) => matchesContext([
+      project.name,
+      project.path,
+      ...(project.tags || [])
+    ].join(' ')));
+    const projectsToRecommend = contextualProjects.length > 0 ? contextualProjects : activeProjects;
+    if (projectsToRecommend.length > 0) {
       recommendations.suggestions.push({
         type: 'projects',
-        items: activeProjects.slice(0, 3).map(p => p.name || p.path),
+        items: projectsToRecommend.slice(0, 3).map(p => p.name || p.path),
         reason: 'Recently accessed projects'
       });
     }

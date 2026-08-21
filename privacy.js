@@ -8,9 +8,33 @@
 
 const REDACTED = '[REDACTED]';
 
-const SENSITIVE_KEY_PATTERN = /(?:api[-_]?key|access[-_]?key|token|secret|password|passwd|pwd|authorization|credential|cookie|private[-_]?key|client[-_]?secret|auth)/i;
 const CLI_SENSITIVE_NAME_PATTERN = /^(?:api[-_]?key|access[-_]?key|access[-_]?token|auth(?:orization)?|auth[-_]?(?:token|password)|token|secret|password|passwd|pwd|client[-_]?secret|private[-_]?key)$/i;
 const ENV_SENSITIVE_NAME_PATTERN = /(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASS|PWD|CREDENTIAL|PRIVATE[_-]?KEY)/i;
+const SENSITIVE_KEY_TOKENS = new Set([
+  'auth',
+  'authorization',
+  'credential',
+  'cookie',
+  'password',
+  'passwd',
+  'pwd',
+  'secret',
+  'token'
+]);
+
+function isSensitiveKey(key) {
+  const tokens = String(key)
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean);
+
+  if (tokens.some((token) => SENSITIVE_KEY_TOKENS.has(token))) return true;
+
+  const normalized = tokens.join('_');
+  return /(?:^|_)(?:api_key|access_key|access_token|private_key)(?:_|$)/.test(normalized);
+}
 
 function redactString(value) {
   return value
@@ -51,7 +75,7 @@ function redactSensitiveData(value, seen = new WeakMap()) {
   seen.set(value, clone);
 
   for (const [key, nestedValue] of Object.entries(value)) {
-    clone[key] = SENSITIVE_KEY_PATTERN.test(key)
+    clone[key] = isSensitiveKey(key)
       ? REDACTED
       : redactSensitiveData(nestedValue, seen);
   }

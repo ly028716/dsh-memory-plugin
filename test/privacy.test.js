@@ -31,6 +31,24 @@ describe('privacy redaction', () => {
     });
   });
 
+  test('does not redact ordinary fields containing auth-like substrings', () => {
+    expect(redactSensitiveData({
+      author: 'Alice',
+      oauthProvider: 'github',
+      auth: 'secret',
+      authToken: 'token',
+      authorization: 'bearer-token',
+      AWS_SECRET_ACCESS_KEY: 'aws-secret'
+    })).toEqual({
+      author: 'Alice',
+      oauthProvider: 'github',
+      auth: '[REDACTED]',
+      authToken: '[REDACTED]',
+      authorization: '[REDACTED]',
+      AWS_SECRET_ACCESS_KEY: '[REDACTED]'
+    });
+  });
+
   test('redacts URL query values and PEM blocks', () => {
     const value = redactSensitiveData(
       'https://example.test?api_key=url-secret -----BEGIN PRIVATE KEY----- private -----END PRIVATE KEY-----'

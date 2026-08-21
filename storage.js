@@ -366,7 +366,7 @@ class MemoryStorage {
     // Navigate to the parent object
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
-      if (!current || typeof current !== 'object') {
+      if (!current || typeof current !== 'object' || Array.isArray(current)) {
         throw new Error(`Cannot set nested storage path: ${dotPath}`);
       }
       if (!Object.prototype.hasOwnProperty.call(current, key)) {
@@ -376,6 +376,9 @@ class MemoryStorage {
     }
     
     // Set the final value
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      throw new Error(`Cannot set nested storage path: ${dotPath}`);
+    }
     current[keys[keys.length - 1]] = cloneData(redactSensitiveData(value));
     this.markDirty(dotPath);
   }

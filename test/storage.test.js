@@ -108,6 +108,13 @@ describe('MemoryStorage', () => {
       expect({}).not.toHaveProperty('polluted');
     });
 
+    test('should reject nested writes through null intermediate values', () => {
+      storage.set('userPreferences.defaultModel', null);
+
+      expect(() => storage.set('userPreferences.defaultModel.detail', 'value'))
+        .toThrow('Cannot set nested storage path: userPreferences.defaultModel.detail');
+    });
+
     test('should mark as dirty when setting values', () => {
       expect(storage.isDirty).toBe(false);
       storage.set('userPreferences.language', 'zh-CN');

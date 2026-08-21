@@ -309,6 +309,38 @@ describe('MemoryManager', () => {
       expect(recs.suggestions.length).toBeGreaterThan(0);
     });
 
+    test('should prioritize recommendations matching the requested context', async () => {
+      storage.set('inputHabits.commonCommands', [
+        { command: 'npm run test', count: 5 },
+        { command: 'git push', count: 5 }
+      ]);
+      storage.set('projectContext.activeProjects', [
+        { name: 'Test Project', path: '/test', tags: ['node'] },
+        { name: 'Deploy Project', path: '/deploy', tags: ['ops'] }
+      ]);
+      await storage.save();
+
+      const recs = manager.getRecommendations('test');
+      const commandRec = recs.suggestions.find(s => s.type === 'commands');
+      const projectRec = recs.suggestions.find(s => s.type === 'projects');
+
+      expect(commandRec.items).toEqual(['npm run test']);
+      expect(projectRec.items).toEqual(['Test Project']);
+    });
+
+    test('should apply pattern recognition threshold to command recommendations', async () => {
+      storage.set('inputHabits.commonCommands', [
+        { command: 'frequent command', count: 3 },
+        { command: 'one-off command', count: 2 }
+      ]);
+      await storage.save();
+
+      const recs = manager.getRecommendations();
+      const commandRec = recs.suggestions.find(s => s.type === 'commands');
+
+      expect(commandRec.items).toEqual(['frequent command']);
+    });
+
     test('should include agent recommendations', () => {
       const recs = manager.getRecommendations('coding');
       
