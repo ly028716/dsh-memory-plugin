@@ -17,6 +17,15 @@ describe('Config Validation', () => {
     expect(config.maxHistoryItems).toBe(DEFAULT_CONFIG.maxHistoryItems);
   });
 
+  test('should disable all automatic collection by default', () => {
+    const config = validateConfig();
+
+    expect(config.trackToolCalls).toBe(false);
+    expect(config.trackPreferences).toBe(false);
+    expect(config.trackProjectContext).toBe(false);
+    expect(config.trackSessionHistory).toBe(false);
+  });
+
   test('should throw error for invalid storagePath', () => {
     expect(() => validateConfig({ storagePath: '' })).toThrow('storagePath must be a non-empty string');
     expect(() => validateConfig({ storagePath: 123 })).toThrow('storagePath must be a non-empty string');

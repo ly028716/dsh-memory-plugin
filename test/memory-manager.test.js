@@ -106,6 +106,53 @@ describe('MemoryManager', () => {
       expect(commands[0].count).toBe(1);
     });
 
+    test('should redact sensitive values before storing collected data', async () => {
+      await manager.recordToolCall({
+        name: 'pwsh',
+        args: { command: 'deploy --api-key=SECRET_VALUE' },
+        result: 'PASSWORD_VALUE'
+      });
+      await manager.recordPreference('credentials', {
+        password: 'PASSWORD_VALUE',
+        region: 'cn'
+      });
+      await manager.recordSessionItem('task', 'use token SESSION_TOKEN');
+      await manager.recordProjectContext({
+        path: 'C:\\Users\\Alice\\repo',
+        name: 'repo',
+        tags: ['team']
+      });
+
+      const data = manager.exportData();
+      const serialized = JSON.stringify(data);
+
+      expect(serialized).not.toContain('SECRET_VALUE');
+      expect(serialized).not.toContain('PASSWORD_VALUE');
+      expect(serialized).not.toContain('SESSION_TOKEN');
+      expect(serialized).not.toContain('C:\\Users\\Alice');
+      expect(data.inputHabits.commonCommands[0].command).toContain('[REDACTED]');
+      expect(data.userPreferences.credentials.password).toBe('[REDACTED]');
+      expect(data.sessionHistory.frequentTasks[0].content).toContain('[REDACTED]');
+      expect(data.projectContext.activeProjects[0].path).toBe('C:\\Users\\[USER]\\repo');
+    });
+
+    test('should redact commands regardless of the recording entry point', async () => {
+      await manager.recordToolCall({
+        name: 'pwsh',
+        args: { command: 'curl https://user:RAW_SECRET@example.test/repo.git' },
+        result: null
+      });
+      await manager.analyzeCommand('git clone https://user:DIRECT_SECRET@example.test/repo.git');
+
+      const serialized = JSON.stringify(manager.exportData());
+      const persisted = await fs.readFile(testFile, 'utf8');
+
+      expect(serialized).not.toContain('RAW_SECRET');
+      expect(serialized).not.toContain('DIRECT_SECRET');
+      expect(persisted).not.toContain('RAW_SECRET');
+      expect(persisted).not.toContain('DIRECT_SECRET');
+    });
+
     test('should not record when tracking is disabled', async () => {
       const noTrackConfig = validateConfig({
         storagePath: testFile,

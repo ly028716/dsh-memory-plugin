@@ -9,11 +9,11 @@ const DEFAULT_CONFIG = {
   maxHistoryItems: 100,
   autoSaveInterval: 5000, // milliseconds
   
-  // What to track
-  trackToolCalls: true,
-  trackPreferences: true,
-  trackProjectContext: true,
-  trackSessionHistory: true,
+  // What to track (automatic collection is opt-in)
+  trackToolCalls: false,
+  trackPreferences: false,
+  trackProjectContext: false,
+  trackSessionHistory: false,
   
   // Privacy settings
   encryptSensitiveData: false,

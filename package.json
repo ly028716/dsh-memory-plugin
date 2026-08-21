@@ -8,6 +8,7 @@
     "cordis.patch.yml",
     "index.js",
     "memory-manager.js",
+    "privacy.js",
     "storage.js",
     "README.md",
     "README.en.md",

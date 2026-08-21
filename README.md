@@ -85,7 +85,7 @@ memoryPlugin.apply(ctx, {
 
 ### 基本使用
 
-插件加载后会自动开始追踪，你也可以通过 API 主动管理：
+插件默认不会自动采集数据；如需启用，请在配置中显式设置对应的追踪开关为 `true`，也可以通过 API 主动管理：
 
 ```javascript
 // 获取智能推荐
@@ -121,14 +121,14 @@ console.log(stats);
   // 自动保存间隔（毫秒）
   autoSaveInterval: 5000,
   
-  // 追踪开关
-  trackToolCalls: true,        // 追踪工具调用
-  trackPreferences: true,      // 追踪用户偏好
-  trackProjectContext: true,   // 追踪项目上下文
-  trackSessionHistory: true,   // 追踪会话历史
+  // 追踪开关（默认关闭，需显式设置为 true）
+  trackToolCalls: false,       // 追踪工具调用
+  trackPreferences: false,     // 追踪用户偏好
+  trackProjectContext: false,  // 追踪项目上下文
+  trackSessionHistory: false,  // 追踪会话历史
   
   // 隐私设置
-  encryptSensitiveData: false, // 加密敏感数据（预留）
+  encryptSensitiveData: false, // 兼容旧配置；自动脱敏始终启用
   allowClearMemory: true,      // 允许清除记忆
   
   // 智能功能

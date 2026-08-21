@@ -138,7 +138,7 @@ describe('MemoryStorage', () => {
       
       expect(after).toBeDefined();
       if (before) {
-        expect(new Date(after)).toBeGreaterThan(new Date(before));
+        expect(new Date(after).getTime()).toBeGreaterThan(new Date(before).getTime());
       }
     });
 
@@ -173,7 +173,7 @@ describe('MemoryStorage', () => {
       
       const topics = storage.get('sessionHistory.recentTopics');
       expect(topics.length).toBe(3);
-      expect(topics[0].content).toBe('topic-5');
+      expect(topics[0]).toBe('topic-5');
     });
   });
 

@@ -85,7 +85,7 @@ memoryPlugin.apply(ctx, {
 
 ### Basic Usage
 
-The plugin automatically starts tracking after loading, but you can also manage it actively through the API:
+The plugin does not collect data by default. Explicitly set the corresponding tracking toggle to `true` to opt in, or manage collection through the API:
 
 ```javascript
 // Get smart recommendations
@@ -121,14 +121,14 @@ console.log(stats);
   // Auto-save interval (milliseconds)
   autoSaveInterval: 5000,
   
-  // Tracking toggles
-  trackToolCalls: true,        // Track tool calls
-  trackPreferences: true,      // Track user preferences
-  trackProjectContext: true,   // Track project context
-  trackSessionHistory: true,   // Track session history
+  // Tracking toggles (disabled by default; explicitly set to true to opt in)
+  trackToolCalls: false,       // Track tool calls
+  trackPreferences: false,     // Track user preferences
+  trackProjectContext: false,  // Track project context
+  trackSessionHistory: false,  // Track session history
   
   // Privacy settings
-  encryptSensitiveData: false, // Encrypt sensitive data (reserved)
+  encryptSensitiveData: false, // Legacy compatibility field; redaction is always enabled
   allowClearMemory: true,      // Allow clearing memory
   
   // Smart features

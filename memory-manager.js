@@ -5,6 +5,7 @@
 
 const { MemoryStorage } = require('./storage');
 const path = require('path');
+const { redactSensitiveData, redactProjectPath } = require('./privacy');
 
 class MemoryManager {
   constructor(config, storage) {
@@ -95,7 +96,7 @@ class MemoryManager {
     
     // Analyze command patterns
     if (args && args.command) {
-      await this.analyzeCommand(args.command);
+      await this.analyzeCommand(redactSensitiveData(args.command));
     }
   }
 
@@ -104,10 +105,11 @@ class MemoryManager {
    * @param {string} command - The command that was executed
    */
   async analyzeCommand(command) {
+    const safeCommand = redactSensitiveData(command);
     const commonCommands = this.storage.get('inputHabits.commonCommands') || [];
     
     // Check if command already exists
-    const existingIndex = commonCommands.findIndex(cmd => cmd.command === command);
+    const existingIndex = commonCommands.findIndex(cmd => cmd.command === safeCommand);
     
     if (existingIndex >= 0) {
       // Increment count
@@ -116,7 +118,7 @@ class MemoryManager {
     } else {
       // Add new command
       commonCommands.unshift({
-        command,
+        command: safeCommand,
         count: 1,
         firstUsed: new Date().toISOString(),
         lastUsed: new Date().toISOString()
@@ -141,7 +143,7 @@ class MemoryManager {
   async recordPreference(preferenceKey, value) {
     if (!this.config.trackPreferences) return;
     
-    this.storage.set(`userPreferences.${preferenceKey}`, value);
+    this.storage.set(`userPreferences.${preferenceKey}`, redactSensitiveData(value));
     await this.storage.save();
   }
 
@@ -152,10 +154,13 @@ class MemoryManager {
   async recordProjectContext(projectInfo) {
     if (!this.config.trackProjectContext) return;
     
+    const safeProjectInfo = redactSensitiveData(projectInfo);
+    safeProjectInfo.path = redactProjectPath(safeProjectInfo.path);
+
     await this.storage.addProject({
-      path: projectInfo.path,
-      name: projectInfo.name || path.basename(projectInfo.path),
-      tags: projectInfo.tags || []
+      path: safeProjectInfo.path,
+      name: safeProjectInfo.name || path.basename(safeProjectInfo.path),
+      tags: safeProjectInfo.tags || []
     });
   }
 
@@ -172,7 +177,7 @@ class MemoryManager {
       : 'sessionHistory.frequentTasks';
     
     await this.storage.appendToArray(path, {
-      content,
+      content: redactSensitiveData(content),
       timestamp: new Date().toISOString()
     }, this.config.maxHistoryItems);
   }
