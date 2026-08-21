@@ -18,7 +18,7 @@
 cd C:\Users\Administrator\.dsh\profiles
 
 # 添加记忆插件（使用相对路径或绝对路径）
-dsh plugin add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
 ```
 
 ### 方法 2：手动配置
@@ -55,7 +55,7 @@ cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
 npm publish
 
 # 然后在 DSH 中安装
-dsh plugin add dsh-memory-plugin
+dsh plugin --profile <name> add dsh-memory-plugin
 ```
 
 ## 🔧 安装后验证
@@ -93,7 +93,12 @@ if (ctx.memory) {
 
 ### 3. 检查数据文件
 
-插件会在配置的路径创建记忆数据文件：
+插件默认不会仅因启动而创建记忆数据文件。只有以下情况会创建或更新文件：
+
+- 开启任一自动采集开关后启动插件；
+- 显式调用 `setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 或 `importData()`。
+
+文件位置为配置的存储路径：
 
 ```bash
 # 默认位置（相对于工作区）
@@ -124,7 +129,7 @@ C:\Users\Administrator\.dsh\.dsh-memory.json
 
 ```javascript
 {
-  // 启用/禁用特定追踪功能
+  // 启用/禁用特定自动采集功能
   trackToolCalls: true,        // 工具调用追踪
   trackPreferences: true,      // 用户偏好追踪
   trackProjectContext: true,   // 项目上下文追踪

@@ -51,10 +51,32 @@ describe('default collection policy', () => {
     await new Promise(resolve => setTimeout(resolve, 150));
 
     expect(context.listeners).toEqual([]);
+    await expect(fs.access(testFile)).rejects.toThrow();
+    expect(context.services.memory.getStats().totalSessions).toBe(0);
     expect(context.services.memory.getStats().trackedTools).toBe(0);
     expect(context.services.memory.getStats().activeProjects).toBe(0);
     expect(context.services.memory.exportData().sessionHistory.recentTopics).toEqual([]);
     expect(context.services.memory.exportData().projectContext.activeProjects).toEqual([]);
+  });
+
+  test('allows explicit memory API writes while automatic collection is disabled', async () => {
+    plugin.apply(context, {
+      storagePath: testFile,
+      autoSaveInterval: 100
+    });
+
+    await context.services.memory.ready;
+    await context.services.memory.setPreference('defaultModel', 'explicit-model');
+    await context.services.memory.recordTopic('explicit topic');
+    await context.services.memory.addProject({
+      path: path.join(testDir, 'project'),
+      name: 'explicit-project'
+    });
+
+    expect(context.services.memory.getPreference('defaultModel')).toBe('explicit-model');
+    expect(context.services.memory.exportData().sessionHistory.recentTopics).toHaveLength(1);
+    expect(context.services.memory.exportData().projectContext.activeProjects).toHaveLength(1);
+    expect(await fs.readFile(testFile, 'utf8')).toContain('explicit-model');
   });
 
   test('keeps the service safe while asynchronous initialization is pending', async () => {

@@ -26,14 +26,20 @@ class MemoryManager {
     if (this._initializePromise) return this._initializePromise;
 
     this._initializePromise = (async () => {
-      await this.storage.initialize();
-      this.startAutoSave();
+      const automaticCollectionEnabled = this.isAutomaticCollectionEnabled();
+      await this.storage.initialize({
+        persistIfMissing: automaticCollectionEnabled,
+        persistSanitized: automaticCollectionEnabled
+      });
+      if (automaticCollectionEnabled) this.startAutoSave();
       this.sessionStartTime = Date.now();
 
       // Update session metadata
-      this.storage.increment('metadata.totalSessions');
-      this.storage.set('metadata.lastSessionDate', new Date().toISOString());
-      await this.storage.save();
+      if (automaticCollectionEnabled) {
+        this.storage.increment('metadata.totalSessions');
+        this.storage.set('metadata.lastSessionDate', new Date().toISOString());
+        await this.storage.save();
+      }
     })();
 
     try {
@@ -49,6 +55,13 @@ class MemoryManager {
 
   async ensureInitialized() {
     await this.initialize();
+  }
+
+  isAutomaticCollectionEnabled() {
+    return this.config.trackToolCalls ||
+      this.config.trackPreferences ||
+      this.config.trackProjectContext ||
+      this.config.trackSessionHistory;
   }
 
   /**
@@ -167,8 +180,6 @@ class MemoryManager {
    * @param {*} value - The preference value
    */
   async recordPreference(preferenceKey, value) {
-    if (!this.config.trackPreferences) return;
-
     if (typeof preferenceKey !== 'string' || preferenceKey.trim() === '') {
       throw new Error('preferenceKey must be a non-empty string');
     }
@@ -187,8 +198,6 @@ class MemoryManager {
    * @param {Object} projectInfo - Project information
    */
   async recordProjectContext(projectInfo) {
-    if (!this.config.trackProjectContext) return;
-
     if (!projectInfo || typeof projectInfo !== 'object' || Array.isArray(projectInfo)) {
       throw new Error('projectInfo must be an object');
     }
@@ -233,8 +242,6 @@ class MemoryManager {
    * @param {string} content - The topic or task content
    */
   async recordSessionItem(type, content) {
-    if (!this.config.trackSessionHistory) return;
-
     if (type !== 'topic' && type !== 'task') {
       throw new Error('session item type must be topic or task');
     }

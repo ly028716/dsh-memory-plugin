@@ -58,7 +58,7 @@ git clone https://github.com/ly028716/dsh-memory-plugin.git
 
 # 在 DSH profile 目录中添加
 cd ~/.dsh/profiles
-dsh plugin add /path/to/dsh-memory-plugin
+dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 ```
 
 #### 方式 2：直接集成到代码
@@ -92,7 +92,7 @@ const stats = ctx.memory.getStats();
 
 ### 基本使用
 
-插件默认不会自动采集数据；如需启用，请在配置中显式设置对应的追踪开关为 `true`，也可以通过 API 主动管理：
+插件默认不会自动采集数据，也不会因为插件启动而创建记忆文件或增加会话计数。四个 `track*` 开关只控制自动采集；通过 `ctx.memory` 显式调用 API 仍会主动写入并持久化数据：
 
 ```javascript
 // 获取智能推荐
@@ -115,6 +115,13 @@ const stats = ctx.memory.getStats();
 console.log(stats);
 ```
 
+### 默认采集语义
+
+- `trackToolCalls`、`trackPreferences`、`trackProjectContext`、`trackSessionHistory` 默认均为 `false`，分别控制对应的自动采集路径。
+- 默认启动只使用内存中的空白记忆，不创建 `.dsh-memory.json`，也不会记录 `metadata.totalSessions`。
+- `setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 和 `importData()` 属于显式操作，即使自动采集开关关闭也会持久化。
+- 只要打开任一自动采集开关，插件启动时就会加载或创建存储文件，并记录一次会话元数据。
+
 ## ⚙️ 配置选项
 
 ```javascript
@@ -128,7 +135,7 @@ console.log(stats);
   // 自动保存间隔（毫秒）
   autoSaveInterval: 5000,
   
-  // 追踪开关（默认关闭，需显式设置为 true）
+  // 自动采集开关（默认关闭，需显式设置为 true）
   trackToolCalls: false,       // 追踪工具调用
   trackPreferences: false,     // 追踪用户偏好
   trackProjectContext: false,  // 追踪项目上下文
@@ -153,6 +160,9 @@ console.log(stats);
 open-viewer.cmd
 
 # 或在浏览器中打开
+viewer.html
+
+# 需要更完整的可视化布局时
 premium-viewer.html
 ```
 
@@ -226,6 +236,7 @@ dsh-memory-plugin/
 ├── storage.js            # 数据存储引擎
 ├── memory-manager.js     # 核心记忆管理
 ├── package.json          # NPM 包配置
+├── viewer.html           # 默认 Web 查看器
 ├── premium-viewer.html   # 专业版 Web 查看器
 ├── demo-viewer.html      # 演示版查看器
 ├── open-viewer.cmd       # 一键启动脚本

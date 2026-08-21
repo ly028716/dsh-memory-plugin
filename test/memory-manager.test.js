@@ -169,7 +169,7 @@ describe('MemoryManager', () => {
         .rejects.toThrow('command must not exceed 10000 characters');
     });
 
-    test('should not record when tracking is disabled', async () => {
+    test('should record explicit preference when automatic tracking is disabled', async () => {
       const noTrackConfig = validateConfig({
         storagePath: testFile,
         trackToolCalls: false
@@ -217,7 +217,7 @@ describe('MemoryManager', () => {
       await noTrackManager.recordPreference('test', 'value');
       
       const value = noTrackStorage.get('userPreferences.test');
-      expect(value).toBeUndefined();
+      expect(value).toBe('value');
       
       noTrackManager.stopAutoSave();
       await fs.rm(testFile + '-nopref', { force: true });
@@ -253,7 +253,7 @@ describe('MemoryManager', () => {
         .rejects.toThrow('projectInfo.tags must not contain more than 50 items');
     });
 
-    test('should not record when tracking is disabled', async () => {
+    test('should record explicit project when automatic tracking is disabled', async () => {
       const noTrackConfig = validateConfig({
         storagePath: testFile,
         trackProjectContext: false
@@ -268,7 +268,8 @@ describe('MemoryManager', () => {
       });
       
       const projects = noTrackStorage.get('projectContext.activeProjects');
-      expect(projects).toEqual([]);
+      expect(projects).toHaveLength(1);
+      expect(projects[0].name).toBe('Test');
       
       noTrackManager.stopAutoSave();
       await fs.rm(testFile + '-noproj', { force: true });
@@ -297,7 +298,7 @@ describe('MemoryManager', () => {
         .rejects.toThrow('session item content must not exceed 10000 characters');
     });
 
-    test('should not record when tracking is disabled', async () => {
+    test('should record explicit session item when automatic tracking is disabled', async () => {
       const noTrackConfig = validateConfig({
         storagePath: testFile,
         trackSessionHistory: false
@@ -309,7 +310,8 @@ describe('MemoryManager', () => {
       await noTrackManager.recordSessionItem('topic', 'test');
       
       const topics = noTrackStorage.get('sessionHistory.recentTopics');
-      expect(topics).toEqual([]);
+      expect(topics).toHaveLength(1);
+      expect(topics[0].content).toBe('test');
       
       noTrackManager.stopAutoSave();
       await fs.rm(testFile + '-nosession', { force: true });

@@ -187,7 +187,7 @@ async function simulateDSHLoading() {
   console.log('📦 The plugin is ready for DSH installation.');
   console.log('\n💡 Installation methods:');
   console.log('   1. Manual: Add to dsh.config.js');
-  console.log('   2. CLI: dsh plugin add --profile <name> <path>');
+  console.log('   2. CLI: dsh plugin --profile <name> add <package>');
   console.log('   3. Direct: require() in your code\n');
 }
 

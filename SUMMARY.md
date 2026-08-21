@@ -104,7 +104,7 @@ memory-plugin/
 ### 安装插件
 ```bash
 # 方式 1: 作为本地插件
-dsh plugin add ../memory-plugin
+dsh plugin --profile <name> add ../memory-plugin
 
 # 方式 2: 在配置中引用
 # dsh.config.js

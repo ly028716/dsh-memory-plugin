@@ -6,6 +6,7 @@ describe('release CI configuration', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
     expect(packageJson.scripts['test:package']).toBe('node test-package.js');
+    expect(packageJson.scripts['test:pinned-commit']).toBe('node test-pinned-commit.js');
     expect(packageJson.engines.node).toBe('>=20');
   });
 
@@ -14,6 +15,7 @@ describe('release CI configuration', () => {
 
     expect(workflow).toContain('tags:');
     expect(workflow).toContain('npm run test:package');
+    expect(workflow).toContain('npm run test:pinned-commit');
     expect(workflow).toContain('npm pack');
     expect(workflow).toContain('upload-artifact');
   });

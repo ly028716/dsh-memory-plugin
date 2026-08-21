@@ -22,6 +22,12 @@ module.exports = {
 };
 ```
 
+## 默认采集语义
+
+默认配置下，插件不会自动记录工具调用、偏好、项目或会话内容；启动也不会创建记忆文件或增加会话计数。四个 `track*` 配置项只控制自动采集。
+
+通过 `ctx.memory.setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 或 `importData()` 进行的显式操作会主动持久化，不受对应自动采集开关影响。
+
 ### 2. 在其他插件中访问记忆服务
 
 ```javascript

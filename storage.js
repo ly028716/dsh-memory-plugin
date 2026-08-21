@@ -230,23 +230,27 @@ class MemoryStorage {
   /**
    * Initialize storage - load existing data or create new
    */
-  async initialize() {
+  async initialize(options = {}) {
     if (this.memory) return;
     if (this._initializePromise) return this._initializePromise;
 
-    this._initializePromise = (async () => {
-      await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
+    const persistIfMissing = options.persistIfMissing !== false;
+    const persistSanitized = options.persistSanitized !== false;
 
+    this._initializePromise = (async () => {
       try {
-        await this.load();
+        await this.load({ persistSanitized });
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
 
         // File doesn't exist, create an isolated default data set.
         this.memory = createDefaultMemory();
         this.memory.metadata.createdAt = new Date().toISOString();
-        this.markDirty();
-        await this.save();
+        if (persistIfMissing) {
+          await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
+          this.markDirty();
+          await this.save();
+        }
       }
     })();
 
@@ -267,7 +271,8 @@ class MemoryStorage {
   /**
    * Load memory data from file
    */
-  async load() {
+  async load(options = {}) {
+    const persistSanitized = options.persistSanitized !== false;
     const content = await fs.readFile(this.storagePath, 'utf-8');
     const parsed = JSON.parse(content);
     assertDataWithinLimits(parsed, 'memory file', INPUT_LIMITS.maxMemoryFileBytes);
@@ -281,7 +286,13 @@ class MemoryStorage {
     this._dirtyVersion = 0;
     this._dirtyPaths.clear();
     this._replaceOnSave = this.isDirty;
-    if (this.isDirty) await this.save();
+    if (this.isDirty && persistSanitized) {
+      await this.save();
+    } else if (this.isDirty) {
+      this.isDirty = false;
+      this._dirtyPaths.clear();
+      this._replaceOnSave = false;
+    }
   }
 
   /**

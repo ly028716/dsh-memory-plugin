@@ -57,13 +57,16 @@ module.exports = {
         initializationPromise = (async () => {
           try {
             await memoryManager.initialize();
-            // Record current working directory as project context
-            const cwd = process.cwd();
-            await memoryManager.recordProjectContext({
-              path: cwd,
-              name: cwd.split(/[\\/]/).pop() || cwd,
-              tags: ['current-workspace']
-            });
+            // Record current working directory only when automatic project
+            // collection is explicitly enabled.
+            if (config.trackProjectContext) {
+              const cwd = process.cwd();
+              await memoryManager.recordProjectContext({
+                path: cwd,
+                name: cwd.split(/[\\/]/).pop() || cwd,
+                tags: ['current-workspace']
+              });
+            }
             isInitialized = true;
             console.log('Memory system initialized successfully');
           } catch (error) {

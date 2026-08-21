@@ -58,7 +58,7 @@ git clone https://github.com/ly028716/dsh-memory-plugin.git
 
 # Add to DSH profile directory
 cd ~/.dsh/profiles
-dsh plugin add /path/to/dsh-memory-plugin
+dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 ```
 
 #### Option 2: Direct Code Integration
@@ -92,7 +92,7 @@ const stats = ctx.memory.getStats();
 
 ### Basic Usage
 
-The plugin does not collect data by default. Explicitly set the corresponding tracking toggle to `true` to opt in, or manage collection through the API:
+The plugin does not collect data automatically by default. Startup also does not create a memory file or increment the session count. The four `track*` toggles control automatic collection only; explicit `ctx.memory` API calls still write and persist data:
 
 ```javascript
 // Get smart recommendations
@@ -115,6 +115,13 @@ const stats = ctx.memory.getStats();
 console.log(stats);
 ```
 
+### Default Collection Semantics
+
+- `trackToolCalls`, `trackPreferences`, `trackProjectContext`, and `trackSessionHistory` default to `false` and control their respective automatic collection paths.
+- With the default configuration, startup keeps an empty memory in RAM, does not create `.dsh-memory.json`, and does not record `metadata.totalSessions`.
+- `setPreference()`, `recordTopic()`, `recordTask()`, `addProject()`, `storage.set()`, and `importData()` are explicit operations and persist data even when automatic collection is disabled.
+- Enabling any automatic collection toggle makes startup load or create the storage file and record one session in the metadata.
+
 ## ⚙️ Configuration Options
 
 ```javascript
@@ -128,7 +135,7 @@ console.log(stats);
   // Auto-save interval (milliseconds)
   autoSaveInterval: 5000,
   
-  // Tracking toggles (disabled by default; explicitly set to true to opt in)
+  // Automatic collection toggles (disabled by default; explicitly set to true to opt in)
   trackToolCalls: false,       // Track tool calls
   trackPreferences: false,     // Track user preferences
   trackProjectContext: false,  // Track project context
@@ -153,6 +160,9 @@ The plugin provides a beautiful web interface to visualize memory data:
 open-viewer.cmd
 
 # Or open in browser
+viewer.html
+
+# For the extended dashboard layout
 premium-viewer.html
 ```
 
@@ -226,6 +236,7 @@ dsh-memory-plugin/
 ├── storage.js            # Data storage engine
 ├── memory-manager.js     # Core memory management
 ├── package.json          # NPM package configuration
+├── viewer.html           # Default web viewer
 ├── premium-viewer.html   # Professional web viewer
 ├── demo-viewer.html      # Demo viewer
 ├── open-viewer.cmd       # One-click launch script

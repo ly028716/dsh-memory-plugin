@@ -138,7 +138,7 @@ echo   3. 重启 DSH
 echo.
 echo 方法 2: 使用 DSH CLI
 echo   cd %DSH_HOME%\profiles
-echo   dsh plugin add %PLUGIN_PATH%
+echo   dsh plugin --profile ^<name^> add %PLUGIN_PATH%
 echo.
 echo 方法 3: 在代码中直接集成
 echo   const plugin = require('path/to/dsh-memory-plugin');

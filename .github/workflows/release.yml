@@ -30,6 +30,7 @@ jobs:
           npm run check
           npm test -- --runInBand
           npm run test:package
+          npm run test:pinned-commit
 
       - name: Build release artifact
         run: npm pack --pack-destination dist

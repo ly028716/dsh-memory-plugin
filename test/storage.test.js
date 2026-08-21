@@ -39,6 +39,13 @@ describe('MemoryStorage', () => {
       expect(data.userPreferences).toBeDefined();
     });
 
+    test('should keep defaults in memory without persisting when requested', async () => {
+      await storage.initialize({ persistIfMissing: false });
+
+      expect(storage.get('version')).toBe('1.0.0');
+      await expect(fs.access(testFile)).rejects.toThrow();
+    });
+
     test('should load existing file', async () => {
       // Create a test file
       const testData = { ...DEFAULT_MEMORY, customField: 'test' };

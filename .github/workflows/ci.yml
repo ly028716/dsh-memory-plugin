@@ -47,6 +47,9 @@ jobs:
       - name: Package verification
         run: npm run test:package
 
+      - name: Pinned commit installation
+        run: npm run test:pinned-commit
+
       - name: Package dry run
         run: npm pack --dry-run
 

@@ -57,7 +57,7 @@ console.log('\n5️⃣  Running quick functionality test...');
   console.log('\n✨ All tests passed!');
   console.log('\n📦 Plugin is ready for installation.');
   console.log('\n💡 Next steps:');
-  console.log('   • Add to DSH profile using: dsh plugin add ../memory-plugin');
+  console.log('   • Add to DSH profile using: dsh plugin --profile <name> add ../memory-plugin');
   console.log('   • Or configure in dsh.config.js');
   console.log('   • See README.md for detailed usage\n');
 })();

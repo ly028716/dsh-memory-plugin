@@ -149,7 +149,7 @@ function Show-Instructions {
     Write-Host ""
     Write-Host "Method 2: Use DSH CLI" -ForegroundColor White
     Write-Host "  cd $ProfilesDir" -ForegroundColor Gray
-    Write-Host "  dsh plugin add $PluginPath" -ForegroundColor Gray
+    Write-Host "  dsh plugin --profile <name> add $PluginPath" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Method 3: Direct code integration" -ForegroundColor White
     Write-Host "  const plugin = require('path/to/dsh-memory-plugin');" -ForegroundColor Gray

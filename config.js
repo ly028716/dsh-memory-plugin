@@ -9,7 +9,7 @@ const DEFAULT_CONFIG = {
   maxHistoryItems: 100,
   autoSaveInterval: 5000, // milliseconds
   
-  // What to track (automatic collection is opt-in)
+  // Automatic collection (opt-in; explicit memory API writes remain available)
   trackToolCalls: false,
   trackPreferences: false,
   trackProjectContext: false,

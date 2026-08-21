@@ -63,6 +63,18 @@ try {
   const patchPath = path.join(installedRoot, installedPackage.dsh.bundle.patch);
   if (!fs.existsSync(patchPath)) throw new Error('Installed package is missing its DSH bundle patch');
 
+  for (const viewerFile of ['viewer.html', 'premium-viewer.html', 'open-viewer.cmd']) {
+    const viewerPath = path.join(installedRoot, viewerFile);
+    if (!fs.existsSync(viewerPath)) {
+      throw new Error(`Installed package is missing its web viewer file: ${viewerFile}`);
+    }
+  }
+
+  const launcher = fs.readFileSync(path.join(installedRoot, 'open-viewer.cmd'), 'utf8');
+  if (!launcher.includes('viewer.html')) {
+    throw new Error('Web viewer launcher does not open viewer.html');
+  }
+
   console.log(`Package verification passed: ${packageJson.name}@${packageJson.version}`);
 } finally {
   fs.rmSync(tempDir, { recursive: true, force: true });

@@ -18,6 +18,9 @@
     "README.en.md",
     "USAGE.md",
     "INSTALL.md",
+    "viewer.html",
+    "premium-viewer.html",
+    "open-viewer.cmd",
     "LICENSE"
   ],
   "scripts": {
@@ -26,6 +29,7 @@
     "test:install": "node test-install.js",
     "test:quick": "node test-quick.js",
     "test:package": "node test-package.js",
+    "test:pinned-commit": "node test-pinned-commit.js",
     "check": "node --check index.js && node --check config.js && node --check limits.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
