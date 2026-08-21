@@ -6,12 +6,14 @@
 const { MemoryStorage, DEFAULT_MEMORY, cloneData, parseDotPath } = require('./storage');
 const path = require('path');
 const { redactSensitiveData, redactProjectPath } = require('./privacy');
+const { INPUT_LIMITS, assertTextLength, assertDataWithinLimits } = require('./limits');
 
 class MemoryManager {
   constructor(config, storage) {
     this.config = config;
     this.storage = storage;
     this.autoSaveTimer = null;
+    this._autoSaveGeneration = 0;
     this.sessionStartTime = null;
     this._initializePromise = null;
   }
@@ -53,25 +55,32 @@ class MemoryManager {
    * Start automatic saving at configured intervals
    */
   startAutoSave() {
-    if (this.autoSaveTimer) {
-      clearInterval(this.autoSaveTimer);
-    }
-    
-    this.autoSaveTimer = setInterval(async () => {
-      try {
-        await this.storage.save();
-      } catch (error) {
-        console.error('Memory plugin: Auto-save failed:', error.message);
-      }
-    }, this.config.autoSaveInterval);
+    this.stopAutoSave();
+    const generation = this._autoSaveGeneration;
+    const schedule = () => {
+      if (generation !== this._autoSaveGeneration) return;
+      this.autoSaveTimer = setTimeout(async () => {
+        if (generation !== this._autoSaveGeneration) return;
+        try {
+          await this.storage.save();
+        } catch (error) {
+          console.error('Memory plugin: Auto-save failed:', error.message);
+        } finally {
+          schedule();
+        }
+      }, this.config.autoSaveInterval);
+    };
+
+    schedule();
   }
 
   /**
-   * Stop automatic saving
+   * Stop automatic saving.
    */
   stopAutoSave() {
+    this._autoSaveGeneration += 1;
     if (this.autoSaveTimer) {
-      clearInterval(this.autoSaveTimer);
+      clearTimeout(this.autoSaveTimer);
       this.autoSaveTimer = null;
     }
   }
@@ -86,6 +95,7 @@ class MemoryManager {
     if (!toolCall || typeof toolCall !== 'object' || typeof toolCall.name !== 'string' || toolCall.name.trim() === '') {
       throw new Error('toolCall.name must be a non-empty string');
     }
+    assertTextLength(toolCall.name, 'toolCall.name', INPUT_LIMITS.maxProjectNameLength);
 
     await this.ensureInitialized();
 
@@ -118,6 +128,7 @@ class MemoryManager {
     if (typeof command !== 'string') {
       throw new Error('command must be a string');
     }
+    assertTextLength(command, 'command');
 
     await this.ensureInitialized();
     const safeCommand = redactSensitiveData(command);
@@ -161,6 +172,8 @@ class MemoryManager {
     if (typeof preferenceKey !== 'string' || preferenceKey.trim() === '') {
       throw new Error('preferenceKey must be a non-empty string');
     }
+    assertTextLength(preferenceKey, 'preferenceKey', INPUT_LIMITS.maxProjectNameLength);
+    assertDataWithinLimits(value, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
 
     parseDotPath(`userPreferences.${preferenceKey}`);
     await this.ensureInitialized();
@@ -183,13 +196,23 @@ class MemoryManager {
     if (typeof projectInfo.path !== 'string' || projectInfo.path.trim() === '') {
       throw new Error('projectInfo.path must be a non-empty string');
     }
+    assertTextLength(projectInfo.path, 'projectInfo.path', INPUT_LIMITS.maxProjectPathLength);
 
     if (projectInfo.name !== undefined && typeof projectInfo.name !== 'string') {
       throw new Error('projectInfo.name must be a string');
     }
+    if (projectInfo.name !== undefined) {
+      assertTextLength(projectInfo.name, 'projectInfo.name', INPUT_LIMITS.maxProjectNameLength);
+    }
 
     if (projectInfo.tags !== undefined && (!Array.isArray(projectInfo.tags) || projectInfo.tags.some((tag) => typeof tag !== 'string'))) {
       throw new Error('projectInfo.tags must be an array of strings');
+    }
+    if (projectInfo.tags !== undefined) {
+      if (projectInfo.tags.length > INPUT_LIMITS.maxTags) {
+        throw new Error(`projectInfo.tags must not contain more than ${INPUT_LIMITS.maxTags} items`);
+      }
+      projectInfo.tags.forEach((tag) => assertTextLength(tag, 'projectInfo.tag', INPUT_LIMITS.maxTagLength));
     }
 
     await this.ensureInitialized();
@@ -219,6 +242,7 @@ class MemoryManager {
     if (typeof content !== 'string') {
       throw new Error('session item content must be a string');
     }
+    assertTextLength(content, 'session item content');
 
     await this.ensureInitialized();
     
@@ -370,6 +394,7 @@ class MemoryManager {
     this.stopAutoSave();
     if (this.storage.memory) {
       await this.storage.save();
+      await this.storage.flush();
     }
   }
 }

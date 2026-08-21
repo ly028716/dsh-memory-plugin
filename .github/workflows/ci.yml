@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
 
     steps:
       - name: Checkout
@@ -17,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -25,6 +28,9 @@ jobs:
 
       - name: Unit tests
         run: npm test -- --runInBand
+
+      - name: Coverage regression
+        run: npm run test:coverage -- --runInBand
 
       - name: Syntax checks
         run: npm run check
@@ -37,6 +43,12 @@ jobs:
 
       - name: Quick test
         run: npm run test:quick
+
+      - name: Package verification
+        run: npm run test:package
+
+      - name: Package dry run
+        run: npm pack --dry-run
 
       - name: Dependency audit
         run: npm audit --audit-level=high

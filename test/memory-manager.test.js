@@ -38,7 +38,7 @@ describe('MemoryManager', () => {
 
   afterEach(async () => {
     // Cleanup
-    manager.stopAutoSave();
+    await manager.dispose();
     try {
       await fs.rm(testDir, { recursive: true, force: true });
     } catch (error) {
@@ -164,6 +164,11 @@ describe('MemoryManager', () => {
       expect(persisted).not.toContain('DIRECT_SECRET');
     });
 
+    test('should reject commands above the input size limit', async () => {
+      await expect(manager.analyzeCommand('x'.repeat(10001)))
+        .rejects.toThrow('command must not exceed 10000 characters');
+    });
+
     test('should not record when tracking is disabled', async () => {
       const noTrackConfig = validateConfig({
         storagePath: testFile,
@@ -193,6 +198,11 @@ describe('MemoryManager', () => {
       
       const model = storage.get('userPreferences.defaultModel');
       expect(model).toBe('qwen3.7-plus');
+    });
+
+    test('should reject oversized preference values', async () => {
+      await expect(manager.recordPreference('largeValue', 'x'.repeat(256 * 1024 + 1)))
+        .rejects.toThrow('stored value must not exceed');
     });
 
     test('should not record when tracking is disabled', async () => {
@@ -234,6 +244,15 @@ describe('MemoryManager', () => {
       expect(projects[0].name).toBe('project');
     });
 
+    test('should reject oversized project metadata', async () => {
+      await expect(manager.recordProjectContext({ path: 'x'.repeat(4097) }))
+        .rejects.toThrow('projectInfo.path must not exceed 4096 characters');
+      await expect(manager.recordProjectContext({ path: '/test', name: 'x'.repeat(201) }))
+        .rejects.toThrow('projectInfo.name must not exceed 200 characters');
+      await expect(manager.recordProjectContext({ path: '/test', tags: Array.from({ length: 51 }, () => 'tag') }))
+        .rejects.toThrow('projectInfo.tags must not contain more than 50 items');
+    });
+
     test('should not record when tracking is disabled', async () => {
       const noTrackConfig = validateConfig({
         storagePath: testFile,
@@ -271,6 +290,11 @@ describe('MemoryManager', () => {
       const tasks = storage.get('sessionHistory.frequentTasks');
       expect(tasks.length).toBe(1);
       expect(tasks[0].content).toBe('implement feature');
+    });
+
+    test('should reject oversized session content', async () => {
+      await expect(manager.recordSessionItem('task', 'x'.repeat(10001)))
+        .rejects.toThrow('session item content must not exceed 10000 characters');
     });
 
     test('should not record when tracking is disabled', async () => {
@@ -454,6 +478,26 @@ describe('MemoryManager', () => {
   });
 
   describe('Cleanup', () => {
+    test('should not overlap automatic saves', async () => {
+      let releaseFirstSave;
+      let saveCount = 0;
+      const firstSave = new Promise((resolve) => { releaseFirstSave = resolve; });
+      const originalSave = storage.save.bind(storage);
+      storage.save = jest.fn(() => {
+        saveCount += 1;
+        return saveCount === 1 ? firstSave : originalSave();
+      });
+
+      manager.startAutoSave();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(storage.save).toHaveBeenCalledTimes(1);
+
+      releaseFirstSave();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(storage.save).toHaveBeenCalledTimes(2);
+      manager.stopAutoSave();
+    });
+
     test('should dispose properly', async () => {
       storage.set('userPreferences.test', 'value');
       await manager.dispose();

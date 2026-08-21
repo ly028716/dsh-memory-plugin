@@ -178,6 +178,27 @@ describe('MemoryStorage', () => {
       await expect(fs.access(lockPath)).rejects.toThrow();
     });
 
+    test('should only release a lock when the owner token matches', async () => {
+      const lockPath = `${testFile}.lock`;
+      const ownerToken = await storage.acquireLock();
+
+      await storage.releaseLock('different-owner');
+      await expect(fs.access(lockPath)).resolves.toBeUndefined();
+
+      await storage.releaseLock(ownerToken);
+      await expect(fs.access(lockPath)).rejects.toThrow();
+    });
+
+    test('should expose a flush operation for queued saves', async () => {
+      storage.set('userPreferences.defaultModel', 'flushed-model');
+      await storage.save();
+      await storage.flush();
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('userPreferences.defaultModel')).toBe('flushed-model');
+    });
+
     test('should serialize saves from separate storage instances into valid JSON', async () => {
       const first = new MemoryStorage(testFile);
       const second = new MemoryStorage(testFile);
@@ -344,6 +365,19 @@ describe('MemoryStorage', () => {
       const invalidData = { noVersion: true };
       
       await expect(storage.importData(invalidData)).rejects.toThrow('Invalid memory data format');
+    });
+
+    test('should reject oversized stored values', () => {
+      expect(() => storage.set('userPreferences.largeValue', 'x'.repeat(256 * 1024 + 1)))
+        .toThrow('stored value must not exceed');
+    });
+
+    test('should reject excessively deep stored values', () => {
+      let value = 'leaf';
+      for (let index = 0; index < 9; index += 1) value = { nested: value };
+
+      expect(() => storage.set('userPreferences.deepValue', value))
+        .toThrow('stored value must not exceed 8 levels');
     });
   });
 

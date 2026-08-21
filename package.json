@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "description": "DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits",
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "files": [
     "config.js",
     "cordis.patch.yml",
     "index.js",
+    "limits.js",
     "memory-manager.js",
     "privacy.js",
     "storage.js",
@@ -21,7 +25,8 @@
     "test:integration": "node test-integration.js",
     "test:install": "node test-install.js",
     "test:quick": "node test-quick.js",
-    "check": "node --check index.js && node --check config.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
+    "test:package": "node test-package.js",
+    "check": "node --check index.js && node --check config.js && node --check limits.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

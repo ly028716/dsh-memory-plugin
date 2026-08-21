@@ -5,7 +5,9 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const crypto = require('crypto');
 const { redactSensitiveData } = require('./privacy');
+const { INPUT_LIMITS, assertDataWithinLimits } = require('./limits');
 
 const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 const LOCK_RETRY_INTERVAL_MS = 25;
@@ -148,16 +150,21 @@ class MemoryStorage {
 
   async acquireLock() {
     const startedAt = Date.now();
+    const ownerToken = crypto.randomBytes(16).toString('hex');
 
     while (Date.now() - startedAt < LOCK_TIMEOUT_MS) {
       try {
         const handle = await fs.open(this.lockPath, 'wx');
         try {
-          await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }), 'utf8');
+          await handle.writeFile(JSON.stringify({
+            pid: process.pid,
+            ownerToken,
+            createdAt: new Date().toISOString()
+          }), 'utf8');
         } finally {
           await handle.close();
         }
-        return;
+        return ownerToken;
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
 
@@ -178,8 +185,18 @@ class MemoryStorage {
     throw new Error(`Timed out waiting for storage lock: ${this.lockPath}`);
   }
 
-  async releaseLock() {
+  async releaseLock(ownerToken) {
+    if (typeof ownerToken !== 'string' || ownerToken.length === 0) return;
+
     try {
+      const content = await fs.readFile(this.lockPath, 'utf8');
+      let lockData;
+      try {
+        lockData = JSON.parse(content);
+      } catch (error) {
+        return;
+      }
+      if (lockData.ownerToken !== ownerToken) return;
       await fs.unlink(this.lockPath);
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
@@ -253,6 +270,7 @@ class MemoryStorage {
   async load() {
     const content = await fs.readFile(this.storagePath, 'utf-8');
     const parsed = JSON.parse(content);
+    assertDataWithinLimits(parsed, 'memory file', INPUT_LIMITS.maxMemoryFileBytes);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Invalid memory data format');
     }
@@ -282,7 +300,7 @@ class MemoryStorage {
 
     const operation = this._saveQueue.then(async () => {
       await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
-      await this.acquireLock();
+      const ownerToken = await this.acquireLock();
       try {
         let persistedSnapshot = snapshot;
         if (!replaceOnSave) {
@@ -300,6 +318,7 @@ class MemoryStorage {
         }
 
         const content = JSON.stringify(persistedSnapshot, null, 2);
+        assertDataWithinLimits(persistedSnapshot, 'memory file', INPUT_LIMITS.maxMemoryFileBytes);
         const handle = await fs.open(tempPath, 'w', 0o600);
         try {
           await handle.writeFile(content, 'utf8');
@@ -323,12 +342,16 @@ class MemoryStorage {
         } catch (error) {
           if (error.code !== 'ENOENT') throw error;
         }
-        await this.releaseLock();
+        await this.releaseLock(ownerToken);
       }
     });
 
     this._saveQueue = operation.catch(() => {});
     return operation;
+  }
+
+  async flush() {
+    await this._saveQueue;
   }
 
   /**
@@ -359,6 +382,7 @@ class MemoryStorage {
    */
   set(dotPath, value) {
     this.assertInitialized();
+    assertDataWithinLimits(value, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
 
     const keys = parseDotPath(dotPath);
     let current = this.memory;
@@ -379,7 +403,9 @@ class MemoryStorage {
     if (!current || typeof current !== 'object' || Array.isArray(current)) {
       throw new Error(`Cannot set nested storage path: ${dotPath}`);
     }
-    current[keys[keys.length - 1]] = cloneData(redactSensitiveData(value));
+    const safeValue = redactSensitiveData(value);
+    assertDataWithinLimits(safeValue, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
+    current[keys[keys.length - 1]] = cloneData(safeValue);
     this.markDirty(dotPath);
   }
 
@@ -509,6 +535,7 @@ class MemoryStorage {
     if (!data || typeof data !== 'object' || Array.isArray(data) || !data.version || !data.metadata) {
       throw new Error('Invalid memory data format');
     }
+    assertDataWithinLimits(data, 'import data', INPUT_LIMITS.maxMemoryFileBytes);
     
     await this.initialize();
     this.memory = mergeDefaults(DEFAULT_MEMORY, redactSensitiveData(data));
