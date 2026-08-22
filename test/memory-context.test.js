@@ -9,8 +9,8 @@ describe('buildMemoryContext', () => {
       }
     });
 
-    expect(result).toContain('Memory context');
-    expect(result).toContain('qwen3.7-plus');
+    expect(result).toContain('Memory context (user-controlled local memory):');
+    expect(result).toContain('defaultModel: qwen3.7-plus');
     expect(result).toContain('memory plugin development');
   });
 
@@ -21,6 +21,33 @@ describe('buildMemoryContext', () => {
 
   test('ignores empty memory entries', () => {
     expect(buildMemoryContext({ sessionHistory: { recentTopics: [{}] } })).toBe('');
+  });
+
+  test('does not render fields outside the supported object entry whitelist', () => {
+    const result = buildMemoryContext({
+      sessionHistory: {
+        recentTopics: [{ content: 'safe', unknown: 'LEAK_ME' }]
+      }
+    });
+
+    expect(result).toContain('safe');
+    expect(result).not.toContain('LEAK_ME');
+    expect(buildMemoryContext({
+      sessionHistory: { recentTopics: [{ unknown: 'LEAK_ME' }] }
+    })).toBe('');
+    expect(buildMemoryContext({ sessionHistory: { recentTopics: [{}] } })).toBe('');
+  });
+
+  test('limits each memory field to the first ten entries', () => {
+    const result = buildMemoryContext({
+      sessionHistory: {
+        recentTopics: Array.from({ length: 20 }, (_, index) => ({ content: `topic-${index}` }))
+      }
+    });
+
+    expect(result).toContain('topic-0');
+    expect(result).toContain('topic-9');
+    expect(result).not.toContain('topic-10');
   });
 
   test('redacts sensitive fields and values before rendering', () => {
