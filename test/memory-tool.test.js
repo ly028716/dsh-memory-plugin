@@ -26,12 +26,16 @@ describe('memory agent tool', () => {
       name: 'memory',
       description: expect.any(String),
       parameters: expect.objectContaining({ type: 'object' }),
-      output: expect.objectContaining({ type: 'object', render: expect.any(Function) }),
+      output: expect.objectContaining({
+        schema: expect.objectContaining({ type: 'object' }),
+        render: expect.any(Function)
+      }),
       execute: expect.any(Function)
     }));
     expect(tool.parameters.required).toEqual(['action']);
     expect(tool.parameters.properties.action.enum).toEqual(['search', 'remember', 'forget']);
     expect(tool.parameters.properties.category.enum).toEqual(['preference', 'topic', 'task', 'project']);
+    expect(tool.output.schema.properties.ok).toEqual({ type: 'boolean' });
   });
 
   test('search returns bounded safe data and defers user context', async () => {
