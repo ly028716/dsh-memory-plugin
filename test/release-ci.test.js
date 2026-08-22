@@ -7,6 +7,25 @@ describe('release CI configuration', () => {
 
     expect(packageJson.name).toBe('@ly028716/dsh-memory-plugin');
     expect(packageJson.publishConfig).toEqual({ access: 'public' });
+    expect(packageJson.description).toBe(
+      'DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits'
+    );
+    expect(packageJson.repository).toEqual({
+      type: 'git',
+      url: 'https://github.com/ly028716/dsh-memory-plugin.git'
+    });
+    expect(packageJson.homepage).toBe('https://github.com/ly028716/dsh-memory-plugin#readme');
+    expect(packageJson.bugs).toEqual({
+      url: 'https://github.com/ly028716/dsh-memory-plugin/issues'
+    });
+    expect(packageJson.author).toBe('ly028716');
+    expect(packageJson.keywords).toEqual(expect.arrayContaining([
+      'dsh-plugin',
+      'deepseek-harness',
+      'ai',
+      'developer-tools',
+      'context-memory'
+    ]));
     expect(packageJson.scripts['test:package']).toBe('node test-package.js');
     expect(packageJson.scripts['test:pinned-commit']).toBe('node test-pinned-commit.js');
     expect(packageJson.engines.node).toBe('>=20');

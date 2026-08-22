@@ -2,6 +2,14 @@
   "name": "@ly028716/dsh-memory-plugin",
   "version": "1.0.0",
   "description": "DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ly028716/dsh-memory-plugin.git"
+  },
+  "homepage": "https://github.com/ly028716/dsh-memory-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/ly028716/dsh-memory-plugin/issues"
+  },
   "main": "index.js",
   "publishConfig": {
     "access": "public"
@@ -42,9 +50,14 @@
     "plugin",
     "memory",
     "preferences",
-    "tracking"
+    "tracking",
+    "dsh-plugin",
+    "deepseek-harness",
+    "ai",
+    "developer-tools",
+    "context-memory"
   ],
-  "author": "",
+  "author": "ly028716",
   "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0"
