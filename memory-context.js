@@ -49,8 +49,9 @@ function addSection(sections, title, value, fieldMode) {
 }
 
 function buildMemoryContext(memory, options = {}) {
-  const maxCharacters = Number.isSafeInteger(options?.maxCharacters) && options.maxCharacters > 0
-    ? options.maxCharacters
+  const requestedMaxCharacters = options?.maxCharacters;
+  const maxCharacters = Number.isSafeInteger(requestedMaxCharacters) && requestedMaxCharacters > 0
+    ? Math.min(requestedMaxCharacters, DEFAULT_MAX_CHARACTERS)
     : DEFAULT_MAX_CHARACTERS;
   const redactedMemory = redactSensitiveData(memory || {});
   const sections = [];
