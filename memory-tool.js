@@ -59,13 +59,15 @@ function createMemoryTool(memory, config = {}) {
       }
     },
     output: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        ok: { type: 'boolean' },
-        code: { type: 'string' },
-        message: { type: 'string' },
-        text: { type: 'string' }
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          ok: { type: 'boolean' },
+          code: { type: 'string' },
+          message: { type: 'string' },
+          text: { type: 'string' }
+        }
       },
       render: (_args, value) => {
         const safe = safeResult(value);
