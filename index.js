@@ -47,6 +47,17 @@ module.exports = {
       // Create memory manager
       const memoryManager = new MemoryManager(config, storage);
 
+      // Keep the agent tool on the public memory API surface. In particular,
+      // do not pass the manager or its storage through to the tool directly.
+      const memoryFacade = {
+        setPreference: (key, value) => memoryManager.recordPreference(key, value),
+        recordTopic: (topic) => memoryManager.recordSessionItem('topic', topic),
+        recordTask: (task) => memoryManager.recordSessionItem('task', task),
+        addProject: (projectInfo) => memoryManager.recordProjectContext(projectInfo),
+        exportData: () => memoryManager.exportData(),
+        clearMemory: () => memoryManager.clearMemory()
+      };
+
       // Register optional DSH capabilities without changing the existing
       // memory service or automatic collection policy.
       const registrationDisposers = [];
@@ -66,7 +77,7 @@ module.exports = {
       }
 
       if (ctx.tools && typeof ctx.tools.register === 'function') {
-        const dispose = ctx.tools.register(createMemoryTool(memoryManager, config));
+        const dispose = ctx.tools.register(createMemoryTool(memoryFacade, config));
         if (typeof dispose === 'function') registrationDisposers.push(dispose);
       }
 
@@ -150,15 +161,8 @@ module.exports = {
         ready,
 
         // Preference management
-        setPreference: (key, value) => memoryManager.recordPreference(key, value),
+        ...memoryFacade,
         getPreference: (key) => storage.memory ? storage.get(`userPreferences.${key}`) : undefined,
-
-        // Session tracking
-        recordTopic: (topic) => memoryManager.recordSessionItem('topic', topic),
-        recordTask: (task) => memoryManager.recordSessionItem('task', task),
-
-        // Project context
-        addProject: (projectInfo) => memoryManager.recordProjectContext(projectInfo),
 
         // Recommendations
         getRecommendations: (context) => memoryManager.getRecommendations(context),
@@ -167,9 +171,7 @@ module.exports = {
         getStats: () => memoryManager.getStats(),
 
         // Data management
-        exportData: () => memoryManager.exportData(),
         importData: (data) => memoryManager.importData(data),
-        clearMemory: () => memoryManager.clearMemory(),
 
         // Direct storage access (advanced)
         storage: {
