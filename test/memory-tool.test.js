@@ -113,6 +113,23 @@ describe('memory agent tool', () => {
     expect(allowedMemory.clearMemory).toHaveBeenCalledTimes(1);
   });
 
+  test.each([
+    ['category', { category: 'topic' }],
+    ['query', { query: 'everything' }],
+    ['key', { key: 'model' }],
+    ['path', { path: '/repo' }],
+    ['name', { name: 'repo' }],
+    ['tags', { tags: ['repo'] }],
+    ['value', { value: 'anything' }]
+  ])('forget rejects a %s field and never clears memory', async (_field, extraArgs) => {
+    const memory = createMemory();
+    const result = await createMemoryTool(memory, { allowClearMemory: true })
+      .execute({ action: 'forget', ...extraArgs }, exec());
+
+    expect(result).toEqual(expect.objectContaining({ ok: false, code: 'MEMORY_TOOL_ERROR' }));
+    expect(memory.clearMemory).not.toHaveBeenCalled();
+  });
+
   test('returns structured errors for unknown action and invalid category without throwing', async () => {
     const tool = createMemoryTool(createMemory());
     await expect(tool.execute({}, exec())).resolves.toEqual(expect.objectContaining({ ok: false, code: 'MEMORY_TOOL_ERROR' }));
@@ -145,6 +162,26 @@ describe('memory agent tool', () => {
       .execute({ action: 'forget' }, exec());
     expect(forgetResult).toEqual(expect.objectContaining({ ok: false, code: 'MEMORY_TOOL_ERROR' }));
     expect(JSON.stringify(forgetResult)).not.toContain('FORGET_SECRET');
+  });
+
+  test('deferContext failures do not change successful search, remember, or forget results', async () => {
+    const throwingExec = { deferContext: jest.fn(() => { throw new Error('DEFER_SECRET'); }) };
+
+    const searchResult = await createMemoryTool(createMemory())
+      .execute({ action: 'search' }, throwingExec);
+    expect(searchResult).toEqual(expect.objectContaining({ ok: true, action: 'search' }));
+
+    const rememberMemory = createMemory();
+    const rememberResult = await createMemoryTool(rememberMemory)
+      .execute({ action: 'remember', category: 'topic', value: 'safe topic' }, throwingExec);
+    expect(rememberResult).toEqual(expect.objectContaining({ ok: true, action: 'remember' }));
+    expect(rememberMemory.recordTopic).toHaveBeenCalledWith('safe topic');
+
+    const forgetMemory = createMemory();
+    const forgetResult = await createMemoryTool(forgetMemory, { allowClearMemory: true })
+      .execute({ action: 'forget' }, throwingExec);
+    expect(forgetResult).toEqual(expect.objectContaining({ ok: true, action: 'forget' }));
+    expect(forgetMemory.clearMemory).toHaveBeenCalledTimes(1);
   });
 
   test('handles absent exportData safely and renders one text content block', async () => {
