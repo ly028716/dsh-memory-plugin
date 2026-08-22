@@ -10,9 +10,13 @@ function isPresent(value) {
 function formatEntry(entry) {
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object') {
-    if (!Object.values(entry).some(isPresent)) return null;
-    if (isPresent(entry.content)) return String(entry.content);
-    return JSON.stringify(entry);
+    const projectedEntry = {};
+    for (const key of ['content', 'name', 'path']) {
+      if (isPresent(entry[key])) projectedEntry[key] = entry[key];
+    }
+    if (Object.keys(projectedEntry).length === 0) return null;
+    if (isPresent(projectedEntry.content)) return String(projectedEntry.content);
+    return JSON.stringify(projectedEntry);
   }
   return String(entry);
 }
@@ -38,14 +42,14 @@ function buildMemoryContext(memory, options = {}) {
   const redactedMemory = redactSensitiveData(memory || {});
   const sections = [];
 
-  addSection(sections, 'Default model', redactedMemory.userPreferences?.defaultModel);
+  addSection(sections, 'defaultModel', redactedMemory.userPreferences?.defaultModel);
   addSection(sections, 'Active projects', redactedMemory.projectContext?.activeProjects);
   addSection(sections, 'Recent topics', redactedMemory.sessionHistory?.recentTopics);
   addSection(sections, 'Frequent tasks', redactedMemory.sessionHistory?.frequentTasks);
   addSection(sections, 'Preferred tools', redactedMemory.inputHabits?.preferredTools);
 
   if (sections.length === 0) return '';
-  return `Memory context\n${sections.join('\n')}`.slice(0, maxCharacters);
+  return `Memory context (user-controlled local memory):\n${sections.join('\n')}`.slice(0, maxCharacters);
 }
 
 module.exports = { buildMemoryContext };
