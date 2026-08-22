@@ -7,16 +7,20 @@ function isPresent(value) {
   return value !== undefined && value !== null && value !== '';
 }
 
+function isSafeScalar(value) {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
 function formatEntry(entry) {
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object') {
-    const projectedEntry = {};
+    const projectedEntry = [];
     for (const key of ['content', 'name', 'path']) {
-      if (isPresent(entry[key])) projectedEntry[key] = entry[key];
+      if (isSafeScalar(entry[key])) projectedEntry.push(`${key}: ${String(entry[key])}`);
     }
-    if (Object.keys(projectedEntry).length === 0) return null;
-    if (isPresent(projectedEntry.content)) return String(projectedEntry.content);
-    return JSON.stringify(projectedEntry);
+    if (projectedEntry.length === 0) return null;
+    if (isSafeScalar(entry.content)) return String(entry.content);
+    return projectedEntry.join(', ');
   }
   return String(entry);
 }
@@ -36,7 +40,7 @@ function addSection(sections, title, value) {
 }
 
 function buildMemoryContext(memory, options = {}) {
-  const maxCharacters = Number.isInteger(options.maxCharacters) && options.maxCharacters > 0
+  const maxCharacters = Number.isSafeInteger(options?.maxCharacters) && options.maxCharacters > 0
     ? options.maxCharacters
     : DEFAULT_MAX_CHARACTERS;
   const redactedMemory = redactSensitiveData(memory || {});
