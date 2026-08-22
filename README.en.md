@@ -263,6 +263,9 @@ dsh-memory-plugin/
 # Run tests
 npm test
 
+# Run the real DSH clean-profile E2E (skips safely when dsh is unavailable)
+npm run test:dsh-e2e
+
 # Run quick demo
 node quick-start.js
 

@@ -60,6 +60,28 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 
 ## 🔧 安装后验证
 
+### 真实 DSH clean-profile E2E
+
+该测试会使用临时 `DSH_HOME` 创建隔离 profile，执行真实的插件安装、配置导出和启动/退出验证，不会修改现有 DSH profile：
+
+```bash
+npm run test:dsh-e2e
+```
+
+默认通过 `dsh plugin` 安装当前仓库；如需验证已发布 npm 包，可设置 `DSH_E2E_PACKAGE=@ly028716/dsh-memory-plugin`。
+
+本机未安装 `dsh` 时测试会安全跳过；在 CI 或验收环境中可强制要求 CLI 存在：
+
+```bash
+DSH_E2E_REQUIRED=1 npm run test:dsh-e2e
+```
+
+PowerShell：
+
+```powershell
+$env:DSH_E2E_REQUIRED = '1'; npm run test:dsh-e2e
+```
+
 ### 1. 检查插件是否加载
 
 启动 DSH 后，查看控制台输出：

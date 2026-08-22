@@ -263,6 +263,9 @@ dsh-memory-plugin/
 # 运行测试
 npm test
 
+# 运行真实 DSH clean-profile E2E（未安装 dsh 时安全跳过）
+npm run test:dsh-e2e
+
 # 运行快速演示
 node quick-start.js
 

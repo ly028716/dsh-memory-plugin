@@ -28,6 +28,7 @@ describe('release CI configuration', () => {
     ]));
     expect(packageJson.scripts['test:package']).toBe('node test-package.js');
     expect(packageJson.scripts['test:pinned-commit']).toBe('node test-pinned-commit.js');
+    expect(packageJson.scripts['test:dsh-e2e']).toBe('node test-dsh-e2e.js');
     expect(packageJson.engines.node).toBe('>=20');
   });
 
@@ -57,5 +58,17 @@ describe('release CI configuration', () => {
       .toContain(installCommand);
     expect(fs.readFileSync(path.join(rootDir, 'test-quick.js'), 'utf8'))
       .toContain(installCommand);
+  });
+
+  test('should document the real DSH clean-profile E2E command', () => {
+    const rootDir = path.join(__dirname, '..');
+    const e2eCommand = 'npm run test:dsh-e2e';
+
+    expect(fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8'))
+      .toContain(e2eCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'README.en.md'), 'utf8'))
+      .toContain(e2eCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'INSTALL.md'), 'utf8'))
+      .toContain(e2eCommand);
   });
 });
