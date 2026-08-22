@@ -7,6 +7,9 @@ describe('release CI configuration', () => {
 
     expect(packageJson.name).toBe('@ly028716/dsh-memory-plugin');
     expect(packageJson.publishConfig).toEqual({ access: 'public' });
+    expect(packageJson.dsh.compatibility).toEqual({
+      cli: '>=0.1.1-rc.2 <0.2.0'
+    });
     expect(packageJson.description).toBe(
       'DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits'
     );
@@ -63,12 +66,19 @@ describe('release CI configuration', () => {
   test('should document the real DSH clean-profile E2E command', () => {
     const rootDir = path.join(__dirname, '..');
     const e2eCommand = 'npm run test:dsh-e2e';
+    const compatibilityRange = '>=0.1.1-rc.2 <0.2.0';
 
     expect(fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8'))
       .toContain(e2eCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8'))
+      .toContain(compatibilityRange);
     expect(fs.readFileSync(path.join(rootDir, 'README.en.md'), 'utf8'))
       .toContain(e2eCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'README.en.md'), 'utf8'))
+      .toContain(compatibilityRange);
     expect(fs.readFileSync(path.join(rootDir, 'INSTALL.md'), 'utf8'))
       .toContain(e2eCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'INSTALL.md'), 'utf8'))
+      .toContain(compatibilityRange);
   });
 });

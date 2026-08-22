@@ -34,6 +34,8 @@
 ```
 ✅ Name: @ly028716/dsh-memory-plugin
 ✅ DSH bundle: Yes
+✅ DSH CLI compatibility: >=0.1.1-rc.2 <0.2.0
+✅ Verified DSH CLI: 0.1.1-rc.2
 ```
 - 包名符合规范
 - 包含 `dsh.bundle.patch` 声明

@@ -266,6 +266,8 @@ npm test
 # 运行真实 DSH clean-profile E2E（未安装 dsh 时安全跳过）
 npm run test:dsh-e2e
 
+# 当前支持：DSH CLI >=0.1.1-rc.2 <0.2.0（已验证 0.1.1-rc.2）
+
 # 运行快速演示
 node quick-start.js
 

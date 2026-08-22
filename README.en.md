@@ -266,6 +266,8 @@ npm test
 # Run the real DSH clean-profile E2E (skips safely when dsh is unavailable)
 npm run test:dsh-e2e
 
+# Supported DSH CLI: >=0.1.1-rc.2 <0.2.0 (verified: 0.1.1-rc.2)
+
 # Run quick demo
 node quick-start.js
 

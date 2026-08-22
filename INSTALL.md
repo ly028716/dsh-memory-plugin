@@ -70,6 +70,8 @@ npm run test:dsh-e2e
 
 默认通过 `dsh plugin` 安装当前仓库；如需验证已发布 npm 包，可设置 `DSH_E2E_PACKAGE=@ly028716/dsh-memory-plugin`。
 
+兼容的 DSH CLI 版本为 `>=0.1.1-rc.2 <0.2.0`，当前已验证版本为 `0.1.1-rc.2`。E2E 会在执行安装前检查 CLI 版本。
+
 本机未安装 `dsh` 时测试会安全跳过；在 CI 或验收环境中可强制要求 CLI 存在：
 
 ```bash
