@@ -19,6 +19,10 @@ describe('buildMemoryContext', () => {
     expect(buildMemoryContext(null)).toBe('');
   });
 
+  test('ignores empty memory entries', () => {
+    expect(buildMemoryContext({ sessionHistory: { recentTopics: [{}] } })).toBe('');
+  });
+
   test('redacts sensitive fields and values before rendering', () => {
     const result = buildMemoryContext({
       userPreferences: {
