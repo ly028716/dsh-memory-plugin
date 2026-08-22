@@ -49,11 +49,21 @@ function addSection(sections, title, value, fieldMode) {
 }
 
 function buildMemoryContext(memory, options = {}) {
-  const requestedMaxCharacters = options?.maxCharacters;
+  let requestedMaxCharacters;
+  try {
+    requestedMaxCharacters = options?.maxCharacters;
+  } catch {
+    requestedMaxCharacters = undefined;
+  }
   const maxCharacters = Number.isSafeInteger(requestedMaxCharacters) && requestedMaxCharacters > 0
     ? Math.min(requestedMaxCharacters, DEFAULT_MAX_CHARACTERS)
     : DEFAULT_MAX_CHARACTERS;
-  const redactedMemory = redactSensitiveData(memory || {});
+  let redactedMemory;
+  try {
+    redactedMemory = redactSensitiveData(memory || {});
+  } catch {
+    return '';
+  }
   const sections = [];
 
   addSection(sections, 'defaultModel', redactedMemory.userPreferences?.defaultModel, 'scalar');
