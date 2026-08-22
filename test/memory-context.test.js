@@ -130,6 +130,19 @@ describe('buildMemoryContext', () => {
     expect(result).toContain('Memory context');
   });
 
+  test('caps requests above the default context limit', () => {
+    const memory = {
+      sessionHistory: {
+        recentTopics: Array.from({ length: 20 }, (_, index) => ({
+          content: `topic-${index}-${'x'.repeat(400)}`
+        }))
+      }
+    };
+
+    expect(buildMemoryContext(memory, { maxCharacters: 5001 }).length).toBeLessThanOrEqual(4000);
+    expect(buildMemoryContext(memory, { maxCharacters: 180 }).length).toBeLessThanOrEqual(180);
+  });
+
   test('ignores nested objects in supported entry fields', () => {
     const result = buildMemoryContext({
       sessionHistory: {
