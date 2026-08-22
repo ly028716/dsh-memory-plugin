@@ -101,6 +101,34 @@ describe('buildMemoryContext', () => {
     })).toContain('defaultModel: safe-model');
   });
 
+  test('does not read inherited memory fields through a polluted prototype', () => {
+    const input = {};
+    Object.defineProperty(input, '__proto__', {
+      value: { userPreferences: { defaultModel: 'proto-value' } },
+      enumerable: true
+    });
+
+    expect(buildMemoryContext(input)).toBe('');
+    expect(buildMemoryContext(input)).not.toContain('proto-value');
+  });
+
+  test('renders active project name and path fields', () => {
+    const result = buildMemoryContext({
+      projectContext: { activeProjects: [{ name: 'app', path: '/repo' }] }
+    });
+
+    expect(result).toContain('app');
+    expect(result).toContain('/repo');
+  });
+
+  test('renders frequent task content', () => {
+    const result = buildMemoryContext({
+      sessionHistory: { frequentTasks: [{ content: 'run tests' }] }
+    });
+
+    expect(result).toContain('run tests');
+  });
+
   test('redacts sensitive fields and values before rendering', () => {
     const result = buildMemoryContext({
       userPreferences: {
