@@ -17,8 +17,9 @@
 # 安装发布的 npm 包
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 
-# Windows profile 启动前执行安全检查；发现物理 fallback 目录时移动到备份
-dsh-memory-plugin doctor --profile <name> --fix
+# 在 profile 目录中执行安全检查；发现物理 fallback 目录时移动到备份
+cd <DSH_HOME>\profiles\<name>
+pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 ```
 
 ### 方法 2：手动配置
@@ -57,8 +58,8 @@ dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\dsh-memory-plug
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<full-40-char-sha>"
 ```
 
-GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应执行
-`dsh-memory-plugin doctor --profile <name> --fix`。
+GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应在 profile 目录中执行
+`pnpm exec dsh-memory-plugin doctor --profile <name> --fix`。
 
 ## 🔧 安装后验证
 

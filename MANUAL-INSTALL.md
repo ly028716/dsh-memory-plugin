@@ -17,7 +17,8 @@
 
 ```powershell
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
-dsh-memory-plugin doctor --profile <name> --fix
+cd <DSH_HOME>/profiles/<name>
+pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 ```
 
 doctor 默认只读检查；`--fix` 只把 DSH 共享 `profiles/node_modules` 中的物理冲突目录移动到

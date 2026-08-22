@@ -40,8 +40,8 @@ DSH CLI `0.1.1-rc.2` 在启动 profile 前会检查共享目录
 插件发布包新增命令：
 
 ```text
-dsh-memory-plugin doctor --profile <name>
-dsh-memory-plugin doctor --profile <name> --fix
+pnpm exec dsh-memory-plugin doctor --profile <name>
+pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 ```
 
 可选参数：
@@ -65,7 +65,7 @@ dsh-memory-plugin doctor --profile <name> --fix
 
 ```text
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
-dsh-memory-plugin doctor --profile <name> --fix
+pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 dsh --profile <name>
 ```
 
@@ -153,7 +153,7 @@ DSH fallback 冲突。
 1. 创建全新临时 `DSH_HOME`；
 2. 通过 npm packed tarball 安装插件；
 3. 人工创建一个受管包的普通目录，模拟 Windows fallback 冲突；
-4. 执行 `dsh-memory-plugin doctor --profile clean --fix`；
+4. 在 profile 目录执行 `pnpm exec dsh-memory-plugin doctor --profile clean --fix`；
 5. 验证普通目录已进入备份且共享路径不再是物理目录；
 6. 执行 DSH 配置/启动探测，捕获明确的退出码、超时和 stderr；
 7. 清理本次临时目录及残留 DSH 子进程。

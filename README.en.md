@@ -65,10 +65,12 @@ dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 
 ```bash
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
-dsh-memory-plugin doctor --profile <name> --fix
+cd <DSH_HOME>/profiles/<name>
+pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 ```
 
-`doctor` performs a read-only check by default. On Windows, if DSH reports that a managed package
+Run `doctor` from the profile directory through `pnpm exec`; it performs a read-only check by default.
+On Windows, if DSH reports that a managed package
 is not a junction, run it explicitly with `--fix`. It moves physical directories into a timestamped
 backup and never deletes them. GitHub pinned-commit installation is reserved for CI and reproducible
 verification; npm is the normal user installation path.

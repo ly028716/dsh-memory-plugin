@@ -258,7 +258,7 @@ README 和安装文档都使用：
 
 ```text
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
-dsh-memory-plugin doctor --profile <name> --fix
+pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 ```
 
 GitHub pinned commit 示例必须使用完整 40 位 SHA，并标注为 CI/复现用途。说明 doctor 默认只读、`--fix` 只移动到备份目录，兼容范围为 `>=0.1.1-rc.2 <0.2.0`。
