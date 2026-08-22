@@ -15,10 +15,8 @@ function formatEntry(entry) {
   return isSafeScalar(entry) ? String(entry) : null;
 }
 
-function formatObjectEntry(entry) {
-  const scalarEntry = formatEntry(entry);
-  if (scalarEntry !== null) return scalarEntry;
-  if (!entry || typeof entry !== 'object') return null;
+function formatStructuredEntry(entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
 
   const projectedEntry = [];
   for (const key of ['content', 'name', 'path']) {
@@ -31,12 +29,12 @@ function formatObjectEntry(entry) {
   return projectedEntry.join(', ');
 }
 
-function addSection(sections, title, value) {
+function addSection(sections, title, value, entryMode = 'structured') {
   if (Array.isArray(value)) {
-      const entries = value
+    const entries = value
       .filter(isPresent)
       .slice(0, MAX_ITEMS_PER_FIELD)
-      .map(formatObjectEntry)
+      .map(entryMode === 'scalar' ? formatEntry : formatStructuredEntry)
       .filter(Boolean);
     if (entries.length > 0) sections.push(`${title}:\n${entries.map((entry) => `- ${entry}`).join('\n')}`);
     return;
@@ -54,10 +52,10 @@ function buildMemoryContext(memory, options = {}) {
   const sections = [];
 
   addSection(sections, 'defaultModel', redactedMemory.userPreferences?.defaultModel);
-  addSection(sections, 'Active projects', redactedMemory.projectContext?.activeProjects);
-  addSection(sections, 'Recent topics', redactedMemory.sessionHistory?.recentTopics);
-  addSection(sections, 'Frequent tasks', redactedMemory.sessionHistory?.frequentTasks);
-  addSection(sections, 'Preferred tools', redactedMemory.inputHabits?.preferredTools);
+  addSection(sections, 'Active projects', redactedMemory.projectContext?.activeProjects, 'structured');
+  addSection(sections, 'Recent topics', redactedMemory.sessionHistory?.recentTopics, 'structured');
+  addSection(sections, 'Frequent tasks', redactedMemory.sessionHistory?.frequentTasks, 'structured');
+  addSection(sections, 'Preferred tools', redactedMemory.inputHabits?.preferredTools, 'scalar');
 
   if (sections.length === 0) return '';
   return `Memory context (user-controlled local memory):\n${sections.join('\n')}`.slice(0, maxCharacters);
