@@ -14,6 +14,20 @@ describe('buildMemoryContext', () => {
     expect(result).toContain('memory plugin development');
   });
 
+  test('ignores unsafe default model values', () => {
+    expect(buildMemoryContext({ userPreferences: { defaultModel: {} } })).toBe('');
+    expect(buildMemoryContext({ userPreferences: { defaultModel: 1n } })).toBe('');
+  });
+
+  test('renders string, number, and boolean default model values', () => {
+    expect(buildMemoryContext({ userPreferences: { defaultModel: 'safe-model' } }))
+      .toContain('defaultModel: safe-model');
+    expect(buildMemoryContext({ userPreferences: { defaultModel: 42 } }))
+      .toContain('defaultModel: 42');
+    expect(buildMemoryContext({ userPreferences: { defaultModel: true } }))
+      .toContain('defaultModel: true');
+  });
+
   test('returns an empty string when no supported memory entries are available', () => {
     expect(buildMemoryContext({})).toBe('');
     expect(buildMemoryContext(null)).toBe('');
