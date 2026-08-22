@@ -26,7 +26,7 @@
 
 **文件：** 创建 `test/profile-doctor.test.js`。
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 测试必须使用真实临时目录，不 mock `fs`。先写以下行为：
 
@@ -99,7 +99,7 @@ test('rejects a repair path outside the shared node_modules root', () => {
 });
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：
 
@@ -109,7 +109,7 @@ npm test -- --runInBand test/profile-doctor.test.js
 
 预期：测试因 `Cannot find module '../profile-doctor'` 失败，而不是测试语法错误。
 
-- [ ] **步骤 3：提交测试红灯**
+- [x] **步骤 3：提交测试红灯**
 
 ```text
 git add test/profile-doctor.test.js
@@ -120,7 +120,7 @@ git commit -m "test(doctor): 增加 profile 冲突行为测试（任务 1）"
 
 **文件：** 创建 `profile-doctor.js`。
 
-- [ ] **步骤 1：实现最小 API**
+- [x] **步骤 1：实现最小 API**
 
 实现以下导出并使任务 1 测试通过：
 
@@ -136,7 +136,7 @@ module.exports = {
 
 `repairConflicts` 必须在移动前验证每个源路径位于 shared root 内、目标位于 backup root 内；拒绝根目录、scope 根目录和路径穿越；不覆盖已有目标；任何移动失败都保留原文件并写入错误结果。
 
-- [ ] **步骤 2：运行单元测试验证通过**
+- [x] **步骤 2：运行单元测试验证通过**
 
 运行：
 
@@ -146,7 +146,7 @@ npm test -- --runInBand test/profile-doctor.test.js
 
 预期：4 个测试全部通过。
 
-- [ ] **步骤 3：提交核心实现**
+- [x] **步骤 3：提交核心实现**
 
 ```text
 git add profile-doctor.js test/profile-doctor.test.js
@@ -157,7 +157,7 @@ git commit -m "feat(doctor): 增加 DSH profile 冲突安全修复（任务 2）
 
 **文件：** 创建 `bin/dsh-memory-plugin.js`；修改 `package.json`、`test-package.js`。
 
-- [ ] **步骤 1：编写 CLI 合同测试**
+- [x] **步骤 1：编写 CLI 合同测试**
 
 在 `test/profile-doctor.test.js` 增加真实子进程测试：
 
@@ -188,7 +188,7 @@ test('CLI defaults to read-only and --fix returns a clean result', () => {
 });
 ```
 
-- [ ] **步骤 2：运行 CLI 测试验证失败**
+- [x] **步骤 2：运行 CLI 测试验证失败**
 
 运行：
 
@@ -198,7 +198,7 @@ npm test -- --runInBand test/profile-doctor.test.js
 
 预期：CLI 测试因入口文件不存在或 bin 未定义而失败。
 
-- [ ] **步骤 3：实现 CLI 和 package.json 元数据**
+- [x] **步骤 3：实现 CLI 和 package.json 元数据**
 
 `bin/dsh-memory-plugin.js` 只接受 `doctor` 子命令，支持 `--profile`、`--dsh-home`、`--fix`、`--json`、`--help`；缺少 profile、未知参数或非 doctor 子命令返回 2。默认扫描发现冲突返回 1，fix 后无剩余冲突返回 0。
 
@@ -214,7 +214,7 @@ npm test -- --runInBand test/profile-doctor.test.js
 
 并把 `profile-doctor.js`、`bin` 加入 `files`。不添加 postinstall/prepare 脚本。
 
-- [ ] **步骤 4：更新打包测试并运行**
+- [x] **步骤 4：更新打包测试并运行**
 
 在 `test-package.js` 检查 packed 安装目录存在 `bin/dsh-memory-plugin.js` 和 `profile-doctor.js`，用 `process.execPath` 执行 `doctor --help` 并断言退出码为 0。
 
@@ -227,7 +227,7 @@ node test-package.js
 
 预期：CLI 单元测试与 tarball 验证全部通过。
 
-- [ ] **步骤 5：提交 CLI 与打包变更**
+- [x] **步骤 5：提交 CLI 与打包变更**
 
 ```text
 git add bin/dsh-memory-plugin.js package.json profile-doctor.js test/profile-doctor.test.js test-package.js
@@ -238,11 +238,11 @@ git commit -m "feat(doctor): 暴露 profile doctor CLI 并纳入 npm 包（任�
 
 **文件：** 修改 `test-dsh-e2e.js`、`README.md`、`README.en.md`、`INSTALL.md`、`MANUAL-INSTALL.md`。
 
-- [ ] **步骤 1：增加真实 E2E 的 doctor 阶段**
+- [x] **步骤 1：增加真实 E2E 的 doctor 阶段**
 
 在 DSH 插件安装成功后，使用 packed npm 包默认路径或 `DSH_E2E_PACKAGE` 指定路径，确认 profile 包存在；向共享 fallback 创建一个明确的普通目录；调用已安装 package 的 bin 或本地 bin 执行 `doctor --fix`；验证备份 manifest、源路径移除和二次扫描结果。启动探测必须保留独立的超时状态，若 DSH 不退出则以“启动仍运行”记录，不把 timeout 当作配置 dump 成功。
 
-- [ ] **步骤 2：运行真实 E2E 验证**
+- [x] **步骤 2：运行真实 E2E 验证**
 
 运行：
 
@@ -252,7 +252,7 @@ npm run test:dsh-e2e
 
 预期：未安装 DSH 时按现有规则跳过；已安装 DSH 时至少完成安装、doctor、配置探测，并在超时路径清理子进程和临时目录。
 
-- [ ] **步骤 3：统一文档安装命令**
+- [x] **步骤 3：统一文档安装命令**
 
 README 和安装文档都使用：
 
@@ -263,7 +263,7 @@ dsh-memory-plugin doctor --profile <name> --fix
 
 GitHub pinned commit 示例必须使用完整 40 位 SHA，并标注为 CI/复现用途。说明 doctor 默认只读、`--fix` 只移动到备份目录，兼容范围为 `>=0.1.1-rc.2 <0.2.0`。
 
-- [ ] **步骤 4：提交 E2E 与文档**
+- [x] **步骤 4：提交 E2E 与文档**
 
 ```text
 git add test-dsh-e2e.js README.md README.en.md INSTALL.md MANUAL-INSTALL.md
@@ -274,11 +274,11 @@ git commit -m "docs(e2e): 接入 profile doctor 和 npm 主安装路径（任务
 
 **文件：** 修改 `.github/workflows/ci.yml`、`.github/workflows/release.yml`，并同步本计划勾选状态。
 
-- [ ] **步骤 1：把 doctor 测试接入 CI**
+- [x] **步骤 1：把 doctor 测试接入 CI**
 
 CI 必须运行 Jest、`node test-package.js`、`npm run test:pinned-commit`、`npm run test:dsh-e2e` 和 npm pack 内容检查。release workflow 在 npm 发布前执行同一 pack/doctor 验证；不引入自动发布凭据或未经确认的 registry 写入。
 
-- [ ] **步骤 2：运行完整验证**
+- [x] **步骤 2：运行完整验证**
 
 运行：
 
@@ -297,10 +297,9 @@ git status --short --branch
 
 预期：所有可执行测试通过；若 DSH 启动本身超时，E2E 必须输出明确的超时状态并完成清理，不能静默成功。
 
-- [ ] **步骤 3：更新计划勾选并提交 CI/验证变更**
+- [x] **步骤 3：更新计划勾选并提交 CI/验证变更**
 
 ```text
 git add .github/workflows/ci.yml .github/workflows/release.yml docs/superpowers/plans/2026-08-22-dsh-profile-doctor.md
 git commit -m "test(ci): 完成 DSH profile doctor 验证（任务 5）"
 ```
-

@@ -50,6 +50,9 @@ jobs:
       - name: Pinned commit installation
         run: npm run test:pinned-commit
 
+      - name: DSH clean-profile E2E
+        run: npm run test:dsh-e2e
+
       - name: Package dry run
         run: npm pack --dry-run
 
