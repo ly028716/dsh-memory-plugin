@@ -26,6 +26,7 @@
     "profile-doctor.js",
     "bin",
     "index.js",
+    "memory-settings.js",
     "limits.js",
     "memory-manager.js",
     "privacy.js",
@@ -67,6 +68,14 @@
   "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": ">=3.18.1 <4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
   },
   "dsh": {
     "bundle": {

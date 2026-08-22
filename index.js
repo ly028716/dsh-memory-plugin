@@ -18,6 +18,7 @@ const { MemoryManager } = require('./memory-manager');
 const { redactSensitiveData } = require('./privacy');
 const { buildMemoryContext } = require('./memory-context');
 const { createMemoryTool } = require('./memory-tool');
+const { registerMemorySettings, pickSettings } = require('./memory-settings');
 
 module.exports = {
   name: 'memory',
@@ -80,6 +81,22 @@ module.exports = {
         const dispose = ctx.tools.register(createMemoryTool(memoryFacade, config));
         if (typeof dispose === 'function') registrationDisposers.push(dispose);
       }
+
+      const settingsDispose = registerMemorySettings(ctx, config, (nextSettings) => {
+        const wasAutomaticCollectionEnabled = memoryManager.isAutomaticCollectionEnabled();
+        Object.assign(config, pickSettings(nextSettings));
+        Object.assign(memoryManager.config, pickSettings(nextSettings));
+        const isAutomaticCollectionEnabled = memoryManager.isAutomaticCollectionEnabled();
+
+        if (memoryManager.sessionStartTime) {
+          if (!wasAutomaticCollectionEnabled && isAutomaticCollectionEnabled) {
+            memoryManager.startAutoSave();
+          } else if (wasAutomaticCollectionEnabled && !isAutomaticCollectionEnabled) {
+            memoryManager.stopAutoSave();
+          }
+        }
+      });
+      if (typeof settingsDispose === 'function') registrationDisposers.push(settingsDispose);
 
       if (registrationDisposers.length > 0 && typeof ctx.effect === 'function') {
         ctx.effect(() => () => {

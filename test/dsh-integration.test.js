@@ -8,6 +8,7 @@ jest.mock('@deepseek-ai/schemastery', () => ({
 
 const plugin = require('../index');
 const { MemoryManager } = require('../memory-manager');
+const { loadOptionalSchema } = require('../memory-settings');
 
 function createIntegrationContext({ prompt = true, tools = true, settings = false } = {}) {
   const promptDispose = jest.fn();
@@ -310,5 +311,11 @@ describe('DSH prompt and tool integration', () => {
     await legacyContext.services.memory.ready;
     expect(legacyContext.services.memory).toBeDefined();
     await disposeContext(legacyContext);
+  });
+
+  test('optional schemastery failure safely skips schema loading', () => {
+    expect(loadOptionalSchema(() => {
+      throw new Error('schemastery is not installed');
+    })).toBeUndefined();
   });
 });
