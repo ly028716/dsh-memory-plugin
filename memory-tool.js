@@ -21,13 +21,17 @@ function errorResult() {
 }
 
 function defer(exec, result) {
-  if (!exec || typeof exec.deferContext !== 'function') return;
-  const text = JSON.stringify(result);
-  exec.deferContext({
-    role: 'user',
-    content: [{ type: 'text', text: `Memory tool result\n${text}` }],
-    source: { kind: 'plugin', name: 'dsh-memory-plugin' }
-  });
+  try {
+    if (!exec || typeof exec.deferContext !== 'function') return;
+    const text = JSON.stringify(result);
+    exec.deferContext({
+      role: 'user',
+      content: [{ type: 'text', text: `Memory tool result\n${text}` }],
+      source: { kind: 'plugin', name: 'dsh-memory-plugin' }
+    });
+  } catch (_error) {
+    // Context enrichment is best-effort; it must not change the tool result.
+  }
 }
 
 function categoryProjection(data, category) {
@@ -116,6 +120,7 @@ function createMemoryTool(memory, config = {}) {
           }
           result = { ok: true, action: 'remember', category: args.category };
         } else {
+          if (Object.keys(args).some((key) => key !== 'action')) return errorResult();
           if (config.allowClearMemory !== true) return { ok: false, code: 'MEMORY_CLEAR_DISABLED', message: 'Clearing memory is disabled.' };
           if (!memory || typeof memory.clearMemory !== 'function') return errorResult();
           await memory.clearMemory();
