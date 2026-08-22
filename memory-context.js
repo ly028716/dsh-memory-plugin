@@ -29,19 +29,23 @@ function formatStructuredEntry(entry) {
   return projectedEntry.join(', ');
 }
 
-function addSection(sections, title, value, entryMode = 'structured') {
-  if (Array.isArray(value)) {
-    const entries = value
-      .filter(isPresent)
-      .slice(0, MAX_ITEMS_PER_FIELD)
-      .map(entryMode === 'scalar' ? formatEntry : formatStructuredEntry)
-      .filter(Boolean);
-    if (entries.length > 0) sections.push(`${title}:\n${entries.map((entry) => `- ${entry}`).join('\n')}`);
+function addSection(sections, title, value, fieldMode) {
+  if (fieldMode === 'scalar') {
+    const entry = formatEntry(value);
+    if (entry !== null && entry !== '') sections.push(`${title}: ${entry}`);
     return;
   }
 
-  const entry = formatEntry(value);
-  if (entry !== null && entry !== '') sections.push(`${title}: ${entry}`);
+  if (fieldMode !== 'structured-array' && fieldMode !== 'scalar-array') return;
+  if (!Array.isArray(value)) return;
+
+  const formatter = fieldMode === 'scalar-array' ? formatEntry : formatStructuredEntry;
+  const entries = value
+    .filter(isPresent)
+    .slice(0, MAX_ITEMS_PER_FIELD)
+    .map(formatter)
+    .filter(Boolean);
+  if (entries.length > 0) sections.push(`${title}:\n${entries.map((entry) => `- ${entry}`).join('\n')}`);
 }
 
 function buildMemoryContext(memory, options = {}) {
@@ -51,11 +55,11 @@ function buildMemoryContext(memory, options = {}) {
   const redactedMemory = redactSensitiveData(memory || {});
   const sections = [];
 
-  addSection(sections, 'defaultModel', redactedMemory.userPreferences?.defaultModel);
-  addSection(sections, 'Active projects', redactedMemory.projectContext?.activeProjects, 'structured');
-  addSection(sections, 'Recent topics', redactedMemory.sessionHistory?.recentTopics, 'structured');
-  addSection(sections, 'Frequent tasks', redactedMemory.sessionHistory?.frequentTasks, 'structured');
-  addSection(sections, 'Preferred tools', redactedMemory.inputHabits?.preferredTools, 'scalar');
+  addSection(sections, 'defaultModel', redactedMemory.userPreferences?.defaultModel, 'scalar');
+  addSection(sections, 'Active projects', redactedMemory.projectContext?.activeProjects, 'structured-array');
+  addSection(sections, 'Recent topics', redactedMemory.sessionHistory?.recentTopics, 'structured-array');
+  addSection(sections, 'Frequent tasks', redactedMemory.sessionHistory?.frequentTasks, 'structured-array');
+  addSection(sections, 'Preferred tools', redactedMemory.inputHabits?.preferredTools, 'scalar-array');
 
   if (sections.length === 0) return '';
   return `Memory context (user-controlled local memory):\n${sections.join('\n')}`.slice(0, maxCharacters);
