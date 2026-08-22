@@ -32,7 +32,7 @@
 
 ### 3. Package.json 验证
 ```
-✅ Name: dsh-memory-plugin
+✅ Name: @ly028716/dsh-memory-plugin
 ✅ DSH bundle: Yes
 ```
 - 包名符合规范

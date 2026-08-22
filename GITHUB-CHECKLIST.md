@@ -7,7 +7,7 @@
 - [x] LICENSE 已添加（MIT）
 - [x] README.md 已更新（包含徽章）
 - [x] CONTRIBUTING.md 已创建
-- [x] package.json 名称正确（dsh-memory-plugin）
+- [x] package.json 名称正确（@ly028716/dsh-memory-plugin）
 
 ### 代码质量
 - [ ] 所有测试通过

@@ -37,8 +37,8 @@ async function simulateDSHLoading() {
   const bundlePatchPath = path.join(__dirname, 'cordis.patch.yml');
   const bundlePatch = await fs.readFile(bundlePatchPath, 'utf-8');
   if (!bundlePatch.includes('id: dsh-memory-plugin') ||
-      !bundlePatch.includes('name: dsh-memory-plugin')) {
-    throw new Error('cordis.patch.yml does not insert the dsh-memory-plugin package');
+      !bundlePatch.includes("name: '@ly028716/dsh-memory-plugin'")) {
+    throw new Error('cordis.patch.yml does not insert the @ly028716/dsh-memory-plugin package');
   }
   
   // Create a mock DSH context (simulating real DSH environment)

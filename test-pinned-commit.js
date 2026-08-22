@@ -37,30 +37,63 @@ function runNpm(args, cwd) {
   return run(npmCommand, args, cwd);
 }
 
-function getPinnedCommit() {
-  const commit = process.env.DSH_PINNED_COMMIT || run('git', ['rev-parse', 'HEAD'], rootDir).trim();
+function getPinnedCommit(repositoryDir) {
+  const commit = process.env.DSH_PINNED_COMMIT || run('git', ['rev-parse', 'HEAD'], repositoryDir).trim();
   if (!/^[0-9a-f]{40}$/i.test(commit)) {
     throw new Error(`DSH_PINNED_COMMIT must be a full 40-character commit SHA: ${commit}`);
   }
   if (!process.env.DSH_PINNED_REPOSITORY) {
-    run('git', ['cat-file', '-e', `${commit}^{commit}`], rootDir);
+    run('git', ['cat-file', '-e', `${commit}^{commit}`], repositoryDir);
   }
   return commit;
 }
 
-function getRepositorySpec(commit) {
-  const repository = process.env.DSH_PINNED_REPOSITORY || `git+${pathToFileURL(rootDir).href}`;
+function getRepositorySpec(repositoryDir, commit) {
+  const repository = process.env.DSH_PINNED_REPOSITORY || `git+${pathToFileURL(repositoryDir).href}`;
   if (repository.includes('#')) {
     throw new Error('DSH_PINNED_REPOSITORY must not contain a commit fragment');
   }
   return `${repository}#${commit}`;
 }
 
+function createWorkingTreeSnapshot() {
+  const snapshotDir = path.join(tempDir, 'snapshot');
+  fs.cpSync(rootDir, snapshotDir, {
+    recursive: true,
+    filter(source) {
+      const relativePath = path.relative(rootDir, source);
+      return relativePath !== '.git' &&
+        !relativePath.startsWith(`.git${path.sep}`) &&
+        relativePath !== 'node_modules' &&
+        !relativePath.startsWith(`node_modules${path.sep}`) &&
+        relativePath !== 'coverage' &&
+        !relativePath.startsWith(`coverage${path.sep}`);
+    }
+  });
+
+  run('git', ['init'], snapshotDir);
+  run('git', ['config', 'user.name', 'pinned-commit-test'], snapshotDir);
+  run('git', ['config', 'user.email', 'pinned-commit-test@example.invalid'], snapshotDir);
+  run('git', ['add', '-A'], snapshotDir);
+  run('git', ['commit', '-m', 'test working tree snapshot'], snapshotDir);
+  return snapshotDir;
+}
+
+function resolvePinnedSource() {
+  if (process.env.DSH_PINNED_REPOSITORY || process.env.DSH_PINNED_COMMIT) {
+    return { repositoryDir: rootDir, commit: getPinnedCommit(rootDir) };
+  }
+
+  const isDirty = run('git', ['status', '--porcelain'], rootDir).trim() !== '';
+  const repositoryDir = isDirty ? createWorkingTreeSnapshot() : rootDir;
+  return { repositoryDir, commit: getPinnedCommit(repositoryDir) };
+}
+
 try {
   fs.mkdirSync(consumerDir, { recursive: true });
 
-  const commit = getPinnedCommit();
-  const repositorySpec = getRepositorySpec(commit);
+  const { repositoryDir, commit } = resolvePinnedSource();
+  const repositorySpec = getRepositorySpec(repositoryDir, commit);
 
   runNpm(['init', '--yes'], consumerDir);
   runNpm([

@@ -5,6 +5,8 @@ describe('release CI configuration', () => {
   test('should define a reproducible package verification script', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
+    expect(packageJson.name).toBe('@ly028716/dsh-memory-plugin');
+    expect(packageJson.publishConfig).toEqual({ access: 'public' });
     expect(packageJson.scripts['test:package']).toBe('node test-package.js');
     expect(packageJson.scripts['test:pinned-commit']).toBe('node test-pinned-commit.js');
     expect(packageJson.engines.node).toBe('>=20');

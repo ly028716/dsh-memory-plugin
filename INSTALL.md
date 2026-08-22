@@ -52,10 +52,10 @@ module.exports = {
 ```bash
 # 首先在 memory-plugin 目录中发布
 cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
-npm publish
+npm publish --access public
 
 # 然后在 DSH 中安装
-dsh plugin --profile <name> add dsh-memory-plugin
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 ```
 
 ## 🔧 安装后验证

@@ -1,8 +1,11 @@
 {
-  "name": "dsh-memory-plugin",
+  "name": "@ly028716/dsh-memory-plugin",
   "version": "1.0.0",
   "description": "DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits",
   "main": "index.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
