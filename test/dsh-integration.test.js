@@ -1,18 +1,27 @@
 const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
+jest.mock('@deepseek-ai/schemastery', () => ({
+  object: jest.fn((fields) => ({ type: 'object', properties: fields })),
+  boolean: jest.fn(() => ({ type: 'boolean' }))
+}), { virtual: true });
+
 const plugin = require('../index');
 const { MemoryManager } = require('../memory-manager');
 
-function createIntegrationContext({ prompt = true, tools = true } = {}) {
+function createIntegrationContext({ prompt = true, tools = true, settings = false } = {}) {
   const promptDispose = jest.fn();
   const toolDispose = jest.fn();
+  const settingsWatchDispose = jest.fn();
+  const settingsScope = { watch: jest.fn(() => settingsWatchDispose) };
+  const settingsRegister = jest.fn(() => settingsScope);
   const context = {
     effects: [],
     services: {},
     listeners: [],
     systemPrompt: prompt ? { context: jest.fn(() => promptDispose) } : undefined,
     tools: tools ? { register: jest.fn(() => toolDispose) } : undefined,
+    settings: settings ? { register: settingsRegister } : undefined,
 
     on(event, handler) {
       this.listeners.push({ event, handler });
@@ -29,7 +38,13 @@ function createIntegrationContext({ prompt = true, tools = true } = {}) {
     }
   };
 
-  context.registrationDisposers = { promptDispose, toolDispose };
+  context.registrationDisposers = {
+    promptDispose,
+    toolDispose,
+    settingsRegister,
+    settingsScope,
+    settingsWatchDispose
+  };
   return context;
 }
 
@@ -175,5 +190,125 @@ describe('DSH prompt and tool integration', () => {
     expect(context.listeners).toEqual([]);
 
     await disposeContext(context);
+  });
+
+  test('registers dsh-memory settings with exactly six live boolean fields', async () => {
+    const context = createIntegrationContext({ settings: true });
+
+    plugin.apply(context, { storagePath: testFile });
+    await context.services.memory.ready;
+
+    expect(context.registrationDisposers.settingsRegister).toHaveBeenCalledWith(
+      'dsh-memory',
+      expect.objectContaining({
+        type: 'object',
+        properties: expect.objectContaining({
+          trackToolCalls: { type: 'boolean' },
+          trackPreferences: { type: 'boolean' },
+          trackProjectContext: { type: 'boolean' },
+          trackSessionHistory: { type: 'boolean' },
+          enableRecommendations: { type: 'boolean' },
+          allowClearMemory: { type: 'boolean' }
+        })
+      }),
+      expect.objectContaining({
+        applies: 'live',
+        base: expect.objectContaining({
+          trackToolCalls: false,
+          trackPreferences: false,
+          trackProjectContext: false,
+          trackSessionHistory: false,
+          enableRecommendations: true,
+          allowClearMemory: true
+        }),
+        validate: expect.any(Function)
+      })
+    );
+
+    const [, schema] = context.registrationDisposers.settingsRegister.mock.calls[0];
+    expect(Object.keys(schema.properties).sort()).toEqual([
+      'allowClearMemory',
+      'enableRecommendations',
+      'trackPreferences',
+      'trackProjectContext',
+      'trackSessionHistory',
+      'trackToolCalls'
+    ]);
+
+    await disposeContext(context);
+  });
+
+  test('live settings update runtime flags and autosave without rebuilding storage', async () => {
+    const context = createIntegrationContext({ settings: true });
+    const startAutoSave = jest.spyOn(MemoryManager.prototype, 'startAutoSave');
+    const stopAutoSave = jest.spyOn(MemoryManager.prototype, 'stopAutoSave');
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+
+      const options = context.registrationDisposers.settingsRegister.mock.calls[0][2];
+      const watch = context.registrationDisposers.settingsScope.watch.mock.calls[0][0];
+      const originalStorage = context.services.memory.storage;
+
+      expect(options.validate({ trackToolCalls: true })).toEqual(expect.objectContaining({
+        trackToolCalls: true
+      }));
+      watch({
+        trackToolCalls: true,
+        enableRecommendations: false,
+        allowClearMemory: false
+      });
+
+      expect(startAutoSave).toHaveBeenCalled();
+      expect(context.services.memory.storage).toBe(originalStorage);
+      expect(context.services.memory.getRecommendations()).toEqual({ available: false });
+      await expect(context.services.memory.clearMemory()).rejects.toThrow('disabled');
+
+      watch({ trackToolCalls: false, enableRecommendations: true, allowClearMemory: true });
+      expect(stopAutoSave).toHaveBeenCalled();
+      expect(context.services.memory.getRecommendations()).toEqual(expect.objectContaining({ available: true }));
+    } finally {
+      startAutoSave.mockRestore();
+      stopAutoSave.mockRestore();
+      await disposeContext(context);
+    }
+  });
+
+  test('invalid live settings are rejected without changing runtime state', async () => {
+    const context = createIntegrationContext({ settings: true });
+    const startAutoSave = jest.spyOn(MemoryManager.prototype, 'startAutoSave');
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+
+      const options = context.registrationDisposers.settingsRegister.mock.calls[0][2];
+      expect(() => options.validate({ trackToolCalls: 'yes' })).toThrow('trackToolCalls');
+
+      const watch = context.registrationDisposers.settingsScope.watch.mock.calls[0][0];
+      expect(() => watch({ trackToolCalls: 'yes' })).not.toThrow();
+      expect(startAutoSave).not.toHaveBeenCalled();
+      expect(context.services.memory.getRecommendations()).toEqual(expect.objectContaining({ available: true }));
+    } finally {
+      startAutoSave.mockRestore();
+      await disposeContext(context);
+    }
+  });
+
+  test('settings watcher is disposed with the plugin and legacy settings are optional', async () => {
+    const context = createIntegrationContext({ settings: true });
+
+    plugin.apply(context, { storagePath: testFile });
+    await context.services.memory.ready;
+    await disposeContext(context);
+
+    expect(context.registrationDisposers.settingsWatchDispose).toHaveBeenCalledTimes(1);
+
+    const legacyContext = createIntegrationContext({ settings: false });
+    expect(() => plugin.apply(legacyContext, { storagePath: testFile })).not.toThrow();
+    await legacyContext.services.memory.ready;
+    expect(legacyContext.services.memory).toBeDefined();
+    await disposeContext(legacyContext);
   });
 });
