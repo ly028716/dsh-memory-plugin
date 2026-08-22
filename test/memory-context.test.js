@@ -64,6 +64,22 @@ describe('buildMemoryContext', () => {
     expect(result).not.toContain('topic-10');
   });
 
+  test('ignores scalar values in structured memory arrays', () => {
+    expect(buildMemoryContext({
+      sessionHistory: { recentTopics: ['raw scalar'] }
+    })).toBe('');
+  });
+
+  test('keeps scalar preferred tools in the memory context', () => {
+    const result = buildMemoryContext({
+      inputHabits: { preferredTools: ['read', 'write'] }
+    });
+
+    expect(result).toContain('Preferred tools:');
+    expect(result).toContain('read');
+    expect(result).toContain('write');
+  });
+
   test('redacts sensitive fields and values before rendering', () => {
     const result = buildMemoryContext({
       userPreferences: {
