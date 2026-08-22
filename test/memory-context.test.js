@@ -185,4 +185,30 @@ describe('buildMemoryContext', () => {
       sessionHistory: { recentTopics: [{ content: 1n }] }
     })).toBe('');
   });
+
+  test('tolerates throwing memory and options getters', () => {
+    const hostileMemory = {};
+    Object.defineProperty(hostileMemory, 'userPreferences', {
+      enumerable: true,
+      get() {
+        throw new Error('boom');
+      }
+    });
+
+    expect(() => buildMemoryContext(hostileMemory)).not.toThrow();
+    expect(buildMemoryContext(hostileMemory)).toBe('');
+
+    const validMemory = {
+      sessionHistory: { recentTopics: [{ content: 'safe' }] }
+    };
+    const hostileOptions = {};
+    Object.defineProperty(hostileOptions, 'maxCharacters', {
+      get() {
+        throw new Error('boom');
+      }
+    });
+
+    expect(() => buildMemoryContext(validMemory, hostileOptions)).not.toThrow();
+    expect(buildMemoryContext(validMemory, hostileOptions).length).toBeLessThanOrEqual(4000);
+  });
 });
