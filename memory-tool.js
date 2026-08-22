@@ -7,9 +7,13 @@ const CATEGORIES = ['preference', 'topic', 'task', 'project'];
 const ERROR_MESSAGE = 'Memory tool request could not be completed.';
 
 function safeResult(result) {
-  const redacted = redactSensitiveData(result);
-  assertDataWithinLimits(redacted, 'memory tool result', 64 * 1024);
-  return redacted;
+  try {
+    const redacted = redactSensitiveData(result);
+    assertDataWithinLimits(redacted, 'memory tool result', 64 * 1024);
+    return redacted;
+  } catch (_error) {
+    return errorResult();
+  }
 }
 
 function errorResult() {
@@ -24,6 +28,15 @@ function defer(exec, result) {
     content: [{ type: 'text', text: `Memory tool result\n${text}` }],
     source: { kind: 'plugin', name: 'dsh-memory-plugin' }
   });
+}
+
+function categoryProjection(data, category) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  if (!category) return data;
+  if (category === 'preference') return { userPreferences: data.userPreferences };
+  if (category === 'project') return { projectContext: data.projectContext };
+  if (category === 'topic') return { sessionHistory: { recentTopics: data.sessionHistory?.recentTopics } };
+  return { sessionHistory: { frequentTasks: data.sessionHistory?.frequentTasks } };
 }
 
 function createMemoryTool(memory, config = {}) {
@@ -54,7 +67,16 @@ function createMemoryTool(memory, config = {}) {
         message: { type: 'string' },
         text: { type: 'string' }
       },
-      render: (_args, value) => [{ type: 'text', text: JSON.stringify(safeResult(value)) }]
+      render: (_args, value) => {
+        const safe = safeResult(value);
+        let text;
+        try {
+          text = JSON.stringify(safe);
+        } catch (_error) {
+          text = JSON.stringify(errorResult());
+        }
+        return [{ type: 'text', text: text || JSON.stringify(errorResult()) }];
+      }
     },
     async execute(args, exec) {
       try {
@@ -64,11 +86,11 @@ function createMemoryTool(memory, config = {}) {
 
         let result;
         if (args.action === 'search') {
-          let exported = {};
-          if (memory && typeof memory.exportData === 'function') exported = memory.exportData() || {};
-          let text = buildMemoryContext(exported);
           if (args.query !== undefined && typeof args.query !== 'string') return errorResult();
           if (args.category !== undefined && !CATEGORIES.includes(args.category)) return errorResult();
+          let exported = {};
+          if (memory && typeof memory.exportData === 'function') exported = memory.exportData() || {};
+          let text = buildMemoryContext(categoryProjection(exported, args.category));
           if (args.query && !text.toLowerCase().includes(args.query.toLowerCase())) text = '';
           result = { ok: true, action: 'search', text };
         } else if (args.action === 'remember') {
