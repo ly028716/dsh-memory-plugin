@@ -1,0 +1,110 @@
+const { buildMemoryContext } = require('./memory-context');
+const { redactSensitiveData } = require('./privacy');
+const { assertDataWithinLimits, INPUT_LIMITS } = require('./limits');
+
+const ACTIONS = ['search', 'remember', 'forget'];
+const CATEGORIES = ['preference', 'topic', 'task', 'project'];
+const ERROR_MESSAGE = 'Memory tool request could not be completed.';
+
+function safeResult(result) {
+  const redacted = redactSensitiveData(result);
+  assertDataWithinLimits(redacted, 'memory tool result', 64 * 1024);
+  return redacted;
+}
+
+function errorResult() {
+  return { ok: false, code: 'MEMORY_TOOL_ERROR', message: ERROR_MESSAGE };
+}
+
+function defer(exec, result) {
+  if (!exec || typeof exec.deferContext !== 'function') return;
+  const text = JSON.stringify(result);
+  exec.deferContext({
+    role: 'user',
+    content: [{ type: 'text', text: `Memory tool result\n${text}` }],
+    source: { kind: 'plugin', name: 'dsh-memory-plugin' }
+  });
+}
+
+function createMemoryTool(memory, config = {}) {
+  const tool = {
+    name: 'memory',
+    description: 'Search, remember, or forget bounded local memory.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['action'],
+      properties: {
+        action: { type: 'string', enum: ACTIONS },
+        query: { type: 'string' },
+        category: { type: 'string', enum: CATEGORIES },
+        key: { type: 'string' },
+        value: {},
+        path: { type: 'string' },
+        name: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } }
+      }
+    },
+    output: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        ok: { type: 'boolean' },
+        code: { type: 'string' },
+        message: { type: 'string' },
+        text: { type: 'string' }
+      },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(safeResult(value)) }]
+    },
+    async execute(args, exec) {
+      try {
+        if (!args || typeof args !== 'object' || Array.isArray(args) || !ACTIONS.includes(args.action)) {
+          return errorResult();
+        }
+
+        let result;
+        if (args.action === 'search') {
+          let exported = {};
+          if (memory && typeof memory.exportData === 'function') exported = memory.exportData() || {};
+          let text = buildMemoryContext(exported);
+          if (args.query !== undefined && typeof args.query !== 'string') return errorResult();
+          if (args.category !== undefined && !CATEGORIES.includes(args.category)) return errorResult();
+          if (args.query && !text.toLowerCase().includes(args.query.toLowerCase())) text = '';
+          result = { ok: true, action: 'search', text };
+        } else if (args.action === 'remember') {
+          if (!CATEGORIES.includes(args.category)) return errorResult();
+          if (args.category === 'preference') {
+            if (typeof args.key !== 'string' || args.key.trim() === '' || args.value === undefined) return errorResult();
+            assertDataWithinLimits(args.value, 'preference value', INPUT_LIMITS.maxStoredValueBytes);
+            await memory.setPreference(args.key, args.value);
+          } else if (args.category === 'topic' || args.category === 'task') {
+            if (typeof args.value !== 'string' || args.value.trim() === '') return errorResult();
+            await memory[args.category === 'topic' ? 'recordTopic' : 'recordTask'](args.value);
+          } else {
+            if (!memory || typeof memory.addProject !== 'function' || typeof args.path !== 'string' || args.path.trim() === '') return errorResult();
+            const project = { path: args.path };
+            if (args.name !== undefined) project.name = args.name;
+            if (args.tags !== undefined) project.tags = args.tags;
+            assertDataWithinLimits(project, 'project', 16 * 1024);
+            await memory.addProject(project);
+          }
+          result = { ok: true, action: 'remember', category: args.category };
+        } else {
+          if (config.allowClearMemory !== true) return { ok: false, code: 'MEMORY_CLEAR_DISABLED', message: 'Clearing memory is disabled.' };
+          if (!memory || typeof memory.clearMemory !== 'function') return errorResult();
+          await memory.clearMemory();
+          result = { ok: true, action: 'forget' };
+        }
+
+        const safe = safeResult(result);
+        defer(exec, safe);
+        return safe;
+      } catch (_error) {
+        return errorResult();
+      }
+    }
+  };
+  return tool;
+}
+
+module.exports = { createMemoryTool };
