@@ -66,7 +66,9 @@ function createMemoryTool(memory, config = {}) {
           ok: { type: 'boolean' },
           code: { type: 'string' },
           message: { type: 'string' },
-          text: { type: 'string' }
+          text: { type: 'string' },
+          action: { type: 'string' },
+          category: { type: 'string' }
         }
       },
       render: (_args, value) => {
