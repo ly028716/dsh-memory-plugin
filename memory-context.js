@@ -10,6 +10,7 @@ function isPresent(value) {
 function formatEntry(entry) {
   if (typeof entry === 'string') return entry;
   if (entry && typeof entry === 'object') {
+    if (!Object.values(entry).some(isPresent)) return null;
     if (isPresent(entry.content)) return String(entry.content);
     return JSON.stringify(entry);
   }
