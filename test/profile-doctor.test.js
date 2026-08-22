@@ -7,15 +7,17 @@ const {
   scanSharedNodeModules,
   repairConflicts
 } = require('../profile-doctor');
+const createdDshHomes = [];
 
 function createDshHome() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-doctor-test-'));
+  const dshHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-doctor-test-'));
+  createdDshHomes.push(dshHome);
+  return dshHome;
 }
 
 afterEach(() => {
-  for (const entry of fs.readdirSync(os.tmpdir())) {
-    if (!entry.startsWith('dsh-doctor-test-')) continue;
-    fs.rmSync(path.join(os.tmpdir(), entry), { recursive: true, force: true });
+  for (const dshHome of createdDshHomes.splice(0)) {
+    fs.rmSync(dshHome, { recursive: true, force: true });
   }
 });
 
