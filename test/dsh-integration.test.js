@@ -68,6 +68,55 @@ describe('DSH prompt and tool integration', () => {
     await disposeContext(context);
   });
 
+  test('registered memory tool executes remember, search, and forget through the memory API', async () => {
+    const context = createIntegrationContext();
+    plugin.apply(context, { storagePath: testFile, allowClearMemory: true });
+    await context.services.memory.ready;
+
+    const tool = context.tools.register.mock.calls[0][0];
+    const exec = { deferContext: jest.fn() };
+
+    try {
+      await expect(tool.execute({
+        action: 'remember',
+        category: 'preference',
+        key: 'defaultModel',
+        value: 'qwen3.7-plus'
+      }, exec)).resolves.toMatchObject({ ok: true, category: 'preference' });
+      await expect(tool.execute({
+        action: 'remember',
+        category: 'topic',
+        value: 'prompt wiring'
+      }, exec)).resolves.toMatchObject({ ok: true, category: 'topic' });
+      await expect(tool.execute({
+        action: 'remember',
+        category: 'task',
+        value: 'verify DSH integration'
+      }, exec)).resolves.toMatchObject({ ok: true, category: 'task' });
+      await expect(tool.execute({
+        action: 'remember',
+        category: 'project',
+        path: path.join(testDir, 'project'),
+        name: 'memory-plugin'
+      }, exec)).resolves.toMatchObject({ ok: true, category: 'project' });
+
+      const exported = context.services.memory.exportData();
+      expect(exported.userPreferences.defaultModel).toBe('qwen3.7-plus');
+      expect(exported.sessionHistory.recentTopics[0].content).toBe('prompt wiring');
+      expect(exported.sessionHistory.frequentTasks[0].content).toBe('verify DSH integration');
+      expect(exported.projectContext.activeProjects[0].name).toBe('memory-plugin');
+      expect(tool.storage).toBeUndefined();
+
+      await expect(tool.execute({ action: 'search', query: 'prompt wiring' }, exec))
+        .resolves.toMatchObject({ ok: true, action: 'search' });
+      await expect(tool.execute({ action: 'forget' }, exec))
+        .resolves.toMatchObject({ ok: true, action: 'forget' });
+      expect(context.services.memory.exportData().sessionHistory.recentTopics).toEqual([]);
+    } finally {
+      await disposeContext(context);
+    }
+  });
+
   test('prompt text reads current memory and omits raw secret fields', async () => {
     const context = createIntegrationContext();
     plugin.apply(context, { storagePath: testFile });
