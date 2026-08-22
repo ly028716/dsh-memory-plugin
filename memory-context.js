@@ -12,31 +12,38 @@ function isSafeScalar(value) {
 }
 
 function formatEntry(entry) {
-  if (typeof entry === 'string') return entry;
-  if (entry && typeof entry === 'object') {
-    const projectedEntry = [];
-    for (const key of ['content', 'name', 'path']) {
-      if (isSafeScalar(entry[key])) projectedEntry.push(`${key}: ${String(entry[key])}`);
+  return isSafeScalar(entry) ? String(entry) : null;
+}
+
+function formatObjectEntry(entry) {
+  const scalarEntry = formatEntry(entry);
+  if (scalarEntry !== null) return scalarEntry;
+  if (!entry || typeof entry !== 'object') return null;
+
+  const projectedEntry = [];
+  for (const key of ['content', 'name', 'path']) {
+    if (isSafeScalar(entry[key]) && entry[key] !== '') {
+      projectedEntry.push(`${key}: ${String(entry[key])}`);
     }
-    if (projectedEntry.length === 0) return null;
-    if (isSafeScalar(entry.content)) return String(entry.content);
-    return projectedEntry.join(', ');
   }
-  return String(entry);
+  if (projectedEntry.length === 0) return null;
+  if (isSafeScalar(entry.content) && entry.content !== '') return String(entry.content);
+  return projectedEntry.join(', ');
 }
 
 function addSection(sections, title, value) {
   if (Array.isArray(value)) {
-    const entries = value
+      const entries = value
       .filter(isPresent)
       .slice(0, MAX_ITEMS_PER_FIELD)
-      .map(formatEntry)
+      .map(formatObjectEntry)
       .filter(Boolean);
     if (entries.length > 0) sections.push(`${title}:\n${entries.map((entry) => `- ${entry}`).join('\n')}`);
     return;
   }
 
-  if (isPresent(value)) sections.push(`${title}: ${formatEntry(value)}`);
+  const entry = formatEntry(value);
+  if (entry !== null && entry !== '') sections.push(`${title}: ${entry}`);
 }
 
 function buildMemoryContext(memory, options = {}) {
