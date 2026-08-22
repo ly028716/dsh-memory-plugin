@@ -80,6 +80,27 @@ describe('buildMemoryContext', () => {
     expect(result).toContain('write');
   });
 
+  test('ignores non-array shapes for memory collections', () => {
+    expect(buildMemoryContext({
+      projectContext: { activeProjects: 'RAW' }
+    })).toBe('');
+    expect(buildMemoryContext({
+      sessionHistory: { recentTopics: 'RAW' }
+    })).toBe('');
+    expect(buildMemoryContext({
+      sessionHistory: { frequentTasks: 'RAW' }
+    })).toBe('');
+    expect(buildMemoryContext({
+      inputHabits: { preferredTools: 'RAW' }
+    })).toBe('');
+  });
+
+  test('continues to allow a safe scalar default model', () => {
+    expect(buildMemoryContext({
+      userPreferences: { defaultModel: 'safe-model' }
+    })).toContain('defaultModel: safe-model');
+  });
+
   test('redacts sensitive fields and values before rendering', () => {
     const result = buildMemoryContext({
       userPreferences: {
