@@ -73,6 +73,17 @@ test('rejects a repair path outside the shared node_modules root', () => {
   })).toThrow(/outside|安全/);
 });
 
+test('treats an uninitialized shared fallback as a clean no-op', () => {
+  const dshHome = createDshHome();
+  const cli = path.join(__dirname, '..', 'bin', 'dsh-memory-plugin.js');
+  const result = spawnSync(process.execPath, [cli, 'doctor', '--profile', 'clean', '--dsh-home', dshHome, '--fix', '--json'], {
+    encoding: 'utf8'
+  });
+
+  expect(result.status).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ initialized: false, conflicts: [], remaining: [] });
+});
+
 test('CLI defaults to read-only and --fix returns a clean result', () => {
   const dshHome = createDshHome();
   const shared = path.join(dshHome, 'profiles', 'node_modules', 'physical-package');

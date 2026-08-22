@@ -79,7 +79,8 @@ function scanSharedNodeModules(paths) {
     return {
       initialized: false,
       conflicts: [],
-      errors: [`Shared DSH node_modules directory does not exist: ${paths.sharedNodeModules}`]
+      errors: [],
+      notices: [`Shared DSH node_modules directory is not initialized: ${paths.sharedNodeModules}`]
     };
   }
 
@@ -90,7 +91,8 @@ function scanSharedNodeModules(paths) {
     return {
       initialized: false,
       conflicts: [],
-      errors: [`Unable to read shared DSH node_modules directory: ${error.message}`]
+      errors: [`Unable to read shared DSH node_modules directory: ${error.message}`],
+      notices: []
     };
   }
 
@@ -149,6 +151,7 @@ function repairConflicts(paths, options = {}) {
     moved: [],
     failed: [],
     errors: initial.errors || [],
+    notices: initial.notices || [],
     remaining: initial.conflicts.slice(),
     backupRoot: null,
     manifestPath: null
@@ -194,6 +197,7 @@ function repairConflicts(paths, options = {}) {
   const finalScan = scanSharedNodeModules(paths);
   result.remaining = finalScan.conflicts;
   result.errors.push(...finalScan.errors);
+  result.notices.push(...(finalScan.notices || []));
   fs.writeFileSync(result.manifestPath, `${JSON.stringify({
     version: 1,
     createdAt: new Date().toISOString(),

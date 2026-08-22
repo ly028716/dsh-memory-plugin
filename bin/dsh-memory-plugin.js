@@ -63,6 +63,7 @@ function serialiseResult(paths, result) {
     failed: result.failed,
     remaining: result.remaining.map(({ relativePath, type, movable }) => ({ relativePath, type, movable })),
     errors: result.errors,
+    notices: result.notices,
     backupRoot: result.backupRoot,
     manifestPath: result.manifestPath
   };
@@ -78,6 +79,7 @@ function printResult(paths, result, json) {
   console.log(`DSH profile doctor: ${paths.profileName}`);
   console.log(`Shared node_modules: ${paths.sharedNodeModules}`);
   if (!output.initialized) console.log('Profile fallback directory is not initialized.');
+  for (const notice of output.notices) console.log(`Notice: ${notice}`);
   console.log(`Physical conflicts: ${output.conflicts.length}`);
   for (const conflict of output.conflicts) console.log(`- ${conflict.relativePath} (${conflict.type})`);
   if (output.moved.length > 0) console.log(`Moved to backup: ${output.moved.length}`);
