@@ -61,7 +61,13 @@ cd ~/.dsh/profiles
 dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 ```
 
-#### Option 2: Direct Code Integration
+#### Option 2: Install from npm (Recommended)
+
+```bash
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+```
+
+#### Option 3: Direct Code Integration
 
 ```javascript
 const memoryPlugin = require('./dsh-memory-plugin');

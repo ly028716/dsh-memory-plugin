@@ -92,7 +92,7 @@
 ### 选项 A：使用 DSH CLI（如果可用）
 ```bash
 cd C:\Users\Administrator\.dsh\profiles
-dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 ```
 
 ### 选项 B：手动集成

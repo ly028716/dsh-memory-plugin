@@ -237,9 +237,9 @@ async function runAllTests() {
   if (passed === total) {
     console.log('\n✨ All tests passed! Memory plugin is ready for installation.\n');
     console.log('📦 Installation options:');
-    console.log('   1. Use dsh CLI: dsh plugin --profile <name> add ../memory-plugin');
+    console.log('   1. Use dsh CLI: dsh plugin --profile <name> add @ly028716/dsh-memory-plugin');
     console.log('   2. Add to dsh.config.js manually');
-    console.log('   3. Install as npm package (future)\n');
+    console.log('   3. See README.md for local plugin and direct integration options\n');
   } else {
     console.log('\n⚠️  Some tests failed. Please review the errors above.\n');
     process.exit(1);

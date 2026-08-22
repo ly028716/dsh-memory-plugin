@@ -61,7 +61,13 @@ cd ~/.dsh/profiles
 dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 ```
 
-#### 方式 2：直接集成到代码
+#### 方式 2：通过 npm 包安装（推荐）
+
+```bash
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+```
+
+#### 方式 3：直接集成到代码
 
 ```javascript
 const memoryPlugin = require('./dsh-memory-plugin');

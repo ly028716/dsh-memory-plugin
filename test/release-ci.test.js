@@ -21,4 +21,22 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('npm pack');
     expect(workflow).toContain('upload-artifact');
   });
+
+  test('should use the scoped package in DSH installation guidance', () => {
+    const rootDir = path.join(__dirname, '..');
+    const installCommand = 'dsh plugin --profile <name> add @ly028716/dsh-memory-plugin';
+
+    expect(fs.readFileSync(path.join(rootDir, 'cordis.patch.yml'), 'utf8'))
+      .toContain("name: '@ly028716/dsh-memory-plugin'");
+    expect(fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8'))
+      .toContain(installCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'README.en.md'), 'utf8'))
+      .toContain(installCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'test-install.js'), 'utf8'))
+      .toContain(installCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'test-integration.js'), 'utf8'))
+      .toContain(installCommand);
+    expect(fs.readFileSync(path.join(rootDir, 'test-quick.js'), 'utf8'))
+      .toContain(installCommand);
+  });
 });
