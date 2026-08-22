@@ -16,6 +16,8 @@ const { validateConfig } = require('./config');
 const { MemoryStorage } = require('./storage');
 const { MemoryManager } = require('./memory-manager');
 const { redactSensitiveData } = require('./privacy');
+const { buildMemoryContext } = require('./memory-context');
+const { createMemoryTool } = require('./memory-tool');
 
 module.exports = {
   name: 'memory',
@@ -44,6 +46,41 @@ module.exports = {
       
       // Create memory manager
       const memoryManager = new MemoryManager(config, storage);
+
+      // Register optional DSH capabilities without changing the existing
+      // memory service or automatic collection policy.
+      const registrationDisposers = [];
+      if (ctx.systemPrompt && typeof ctx.systemPrompt.context === 'function') {
+        const dispose = ctx.systemPrompt.context({
+          name: 'dsh-memory:context',
+          order: 120,
+          text: () => {
+            try {
+              return buildMemoryContext(memoryManager.exportData());
+            } catch (_error) {
+              return '';
+            }
+          }
+        });
+        if (typeof dispose === 'function') registrationDisposers.push(dispose);
+      }
+
+      if (ctx.tools && typeof ctx.tools.register === 'function') {
+        const dispose = ctx.tools.register(createMemoryTool(memoryManager, config));
+        if (typeof dispose === 'function') registrationDisposers.push(dispose);
+      }
+
+      if (registrationDisposers.length > 0 && typeof ctx.effect === 'function') {
+        ctx.effect(() => () => {
+          for (const dispose of registrationDisposers.splice(0)) {
+            try {
+              dispose();
+            } catch (error) {
+              console.error('Memory plugin: Failed to dispose DSH registration:', error.message);
+            }
+          }
+        });
+      }
       
       // Initialize memory system
       let isInitialized = false;

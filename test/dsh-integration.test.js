@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const plugin = require('../index');
+const { MemoryManager } = require('../memory-manager');
 
 function createIntegrationContext({ prompt = true, tools = true } = {}) {
   const promptDispose = jest.fn();
@@ -91,19 +92,17 @@ describe('DSH prompt and tool integration', () => {
     await context.services.memory.ready;
 
     const promptDefinition = context.systemPrompt.context.mock.calls[0][0];
-    const storage = context.services.memory.storage;
-    const originalDescriptor = Object.getOwnPropertyDescriptor(storage, 'memory');
-    Object.defineProperty(storage, 'memory', {
-      configurable: true,
-      get() {
-        throw new Error('simulated export failure');
-      }
-    });
+    const originalExportData = MemoryManager.prototype.exportData;
+    MemoryManager.prototype.exportData = () => {
+      throw new Error('simulated export failure');
+    };
 
-    expect(promptDefinition.text()).toBe('');
-
-    Object.defineProperty(storage, 'memory', originalDescriptor);
-    await disposeContext(context);
+    try {
+      expect(promptDefinition.text()).toBe('');
+    } finally {
+      MemoryManager.prototype.exportData = originalExportData;
+      await disposeContext(context);
+    }
   });
 
   test('unloading the plugin disposes prompt and tool registrations', async () => {
