@@ -11,6 +11,9 @@
     "url": "https://github.com/ly028716/dsh-memory-plugin/issues"
   },
   "main": "index.js",
+  "bin": {
+    "dsh-memory-plugin": "bin/dsh-memory-plugin.js"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -20,6 +23,8 @@
   "files": [
     "config.js",
     "cordis.patch.yml",
+    "profile-doctor.js",
+    "bin",
     "index.js",
     "limits.js",
     "memory-manager.js",

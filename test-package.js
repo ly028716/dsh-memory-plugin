@@ -63,6 +63,17 @@ try {
   const patchPath = path.join(installedRoot, installedPackage.dsh.bundle.patch);
   if (!fs.existsSync(patchPath)) throw new Error('Installed package is missing its DSH bundle patch');
 
+  const doctorPath = path.join(installedRoot, 'bin', 'dsh-memory-plugin.js');
+  if (!fs.existsSync(doctorPath) || !fs.existsSync(path.join(installedRoot, 'profile-doctor.js'))) {
+    throw new Error('Installed package is missing the profile doctor CLI files');
+  }
+  const doctorHelp = require('child_process').execFileSync(process.execPath, [doctorPath, 'doctor', '--help'], {
+    encoding: 'utf8'
+  });
+  if (!doctorHelp.includes('dsh-memory-plugin doctor')) {
+    throw new Error('Installed profile doctor CLI does not expose its help text');
+  }
+
   for (const viewerFile of ['viewer.html', 'premium-viewer.html', 'open-viewer.cmd']) {
     const viewerPath = path.join(installedRoot, viewerFile);
     if (!fs.existsSync(viewerPath)) {

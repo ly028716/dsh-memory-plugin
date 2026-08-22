@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const {
   resolveDshPaths,
   scanSharedNodeModules,
@@ -68,4 +69,25 @@ test('rejects a repair path outside the shared node_modules root', () => {
     fix: true,
     conflicts: [{ absolutePath: path.join(dshHome, 'outside'), relativePath: '../outside', type: 'directory' }]
   })).toThrow(/outside|安全/);
+});
+
+test('CLI defaults to read-only and --fix returns a clean result', () => {
+  const dshHome = createDshHome();
+  const shared = path.join(dshHome, 'profiles', 'node_modules', 'physical-package');
+  fs.mkdirSync(shared, { recursive: true });
+  const cli = path.join(__dirname, '..', 'bin', 'dsh-memory-plugin.js');
+
+  const dryRun = spawnSync(process.execPath, [cli, 'doctor', '--profile', 'clean', '--dsh-home', dshHome, '--json'], {
+    encoding: 'utf8'
+  });
+  expect(dryRun.status).toBe(1);
+  expect(JSON.parse(dryRun.stdout).conflicts).toHaveLength(1);
+  expect(fs.existsSync(shared)).toBe(true);
+
+  const fix = spawnSync(process.execPath, [cli, 'doctor', '--profile', 'clean', '--dsh-home', dshHome, '--fix', '--json'], {
+    encoding: 'utf8'
+  });
+  expect(fix.status).toBe(0);
+  expect(JSON.parse(fix.stdout).remaining).toHaveLength(0);
+  expect(fs.existsSync(shared)).toBe(false);
 });
