@@ -3,6 +3,11 @@ const { redactSensitiveData } = require('./privacy');
 const DEFAULT_MAX_CHARACTERS = 4000;
 const MAX_ITEMS_PER_FIELD = 10;
 
+function own(value, key) {
+  return value !== null && value !== undefined
+    && Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function isPresent(value) {
   return value !== undefined && value !== null && value !== '';
 }
@@ -20,12 +25,14 @@ function formatStructuredEntry(entry) {
 
   const projectedEntry = [];
   for (const key of ['content', 'name', 'path']) {
-    if (isSafeScalar(entry[key]) && entry[key] !== '') {
+    if (own(entry, key) && isSafeScalar(entry[key]) && entry[key] !== '') {
       projectedEntry.push(`${key}: ${String(entry[key])}`);
     }
   }
   if (projectedEntry.length === 0) return null;
-  if (isSafeScalar(entry.content) && entry.content !== '') return String(entry.content);
+  if (own(entry, 'content') && isSafeScalar(entry.content) && entry.content !== '') {
+    return String(entry.content);
+  }
   return projectedEntry.join(', ');
 }
 
@@ -65,12 +72,16 @@ function buildMemoryContext(memory, options = {}) {
     return '';
   }
   const sections = [];
+  const userPreferences = own(redactedMemory, 'userPreferences') ? redactedMemory.userPreferences : undefined;
+  const projectContext = own(redactedMemory, 'projectContext') ? redactedMemory.projectContext : undefined;
+  const sessionHistory = own(redactedMemory, 'sessionHistory') ? redactedMemory.sessionHistory : undefined;
+  const inputHabits = own(redactedMemory, 'inputHabits') ? redactedMemory.inputHabits : undefined;
 
-  addSection(sections, 'defaultModel', redactedMemory.userPreferences?.defaultModel, 'scalar');
-  addSection(sections, 'Active projects', redactedMemory.projectContext?.activeProjects, 'structured-array');
-  addSection(sections, 'Recent topics', redactedMemory.sessionHistory?.recentTopics, 'structured-array');
-  addSection(sections, 'Frequent tasks', redactedMemory.sessionHistory?.frequentTasks, 'structured-array');
-  addSection(sections, 'Preferred tools', redactedMemory.inputHabits?.preferredTools, 'scalar-array');
+  addSection(sections, 'defaultModel', own(userPreferences, 'defaultModel') ? userPreferences.defaultModel : undefined, 'scalar');
+  addSection(sections, 'Active projects', own(projectContext, 'activeProjects') ? projectContext.activeProjects : undefined, 'structured-array');
+  addSection(sections, 'Recent topics', own(sessionHistory, 'recentTopics') ? sessionHistory.recentTopics : undefined, 'structured-array');
+  addSection(sections, 'Frequent tasks', own(sessionHistory, 'frequentTasks') ? sessionHistory.frequentTasks : undefined, 'structured-array');
+  addSection(sections, 'Preferred tools', own(inputHabits, 'preferredTools') ? inputHabits.preferredTools : undefined, 'scalar-array');
 
   if (sections.length === 0) return '';
   return `Memory context (user-controlled local memory):\n${sections.join('\n')}`.slice(0, maxCharacters);
