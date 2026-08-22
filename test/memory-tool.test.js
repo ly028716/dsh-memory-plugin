@@ -36,6 +36,8 @@ describe('memory agent tool', () => {
     expect(tool.parameters.properties.action.enum).toEqual(['search', 'remember', 'forget']);
     expect(tool.parameters.properties.category.enum).toEqual(['preference', 'topic', 'task', 'project']);
     expect(tool.output.schema.properties.ok).toEqual({ type: 'boolean' });
+    expect(tool.output.schema.properties.action).toEqual({ type: 'string' });
+    expect(tool.output.schema.properties.category).toEqual({ type: 'string' });
   });
 
   test('search returns bounded safe data and defers user context', async () => {
