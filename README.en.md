@@ -65,7 +65,18 @@ dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 
 ```bash
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+dsh-memory-plugin doctor --profile <name> --fix
 ```
+
+`doctor` performs a read-only check by default. On Windows, if DSH reports that a managed package
+is not a junction, run it explicitly with `--fix`. It moves physical directories into a timestamped
+backup and never deletes them. GitHub pinned-commit installation is reserved for CI and reproducible
+verification; npm is the normal user installation path.
+
+#### DSH CLI compatibility
+
+This plugin supports DSH CLI `>=0.1.1-rc.2 <0.2.0`. The real install test uses an npm packed tarball;
+GitHub source installation tests must use a full 40-character commit SHA.
 
 #### Option 3: Direct Code Integration
 

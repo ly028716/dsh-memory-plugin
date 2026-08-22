@@ -8,8 +8,15 @@ const packageJson = require(path.join(rootDir, 'package.json'));
 const packageName = packageJson.name;
 const compatibilityRange = packageJson.dsh && packageJson.dsh.compatibility && packageJson.dsh.compatibility.cli;
 const required = process.env.DSH_E2E_REQUIRED === '1';
-const packageSpec = process.env.DSH_E2E_PACKAGE || '.';
 const bootWaitMs = Number(process.env.DSH_E2E_BOOT_MS || 3000);
+const commandTimeoutMs = Number(process.env.DSH_E2E_COMMAND_MS || 120000);
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const npmCliPath = [
+  process.env.npm_execpath,
+  path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  path.join(path.dirname(process.execPath), '..', 'node_modules', 'npm', 'bin', 'npm-cli.js')
+].find((candidate) => candidate && fs.existsSync(candidate));
 
 function formatOutput(result) {
   return [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
@@ -82,15 +89,95 @@ function commandInvocation(command, args) {
   return { command, args };
 }
 
+function terminatePidTree(pid) {
+  if (!pid) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+  }
+}
+
 function runDsh(command, args, env) {
   const invocation = commandInvocation(command, args);
-  return spawnSync(invocation.command, invocation.args, {
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: rootDir,
     env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
-    maxBuffer: 10 * 1024 * 1024
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: commandTimeoutMs
   });
+  if (result.error && result.error.code === 'ETIMEDOUT') terminatePidTree(result.pid);
+  return result;
+}
+
+function runDshAsync(command, args, env, timeoutMs) {
+  return new Promise((resolve) => {
+    const invocation = commandInvocation(command, args);
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: rootDir,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timer;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ...result, stdout, stderr, pid: child.pid });
+    };
+
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('error', (error) => finish({ error, status: null }));
+    child.on('exit', (status, signal) => finish({ status, signal, error: null }));
+    timer = setTimeout(() => {
+      terminatePidTree(child.pid);
+      const error = new Error(`DSH command timed out after ${timeoutMs}ms`);
+      error.code = 'ETIMEDOUT';
+      finish({ error, status: null, timedOut: true });
+    }, timeoutMs);
+  });
+}
+
+function runNpm(args, cwd, env) {
+  const command = npmCliPath ? process.execPath : npmCommand;
+  const commandArgs = npmCliPath ? [npmCliPath, ...args] : args;
+  const invocation = commandInvocation(command, commandArgs);
+  return spawnSync(invocation.command, invocation.args, {
+    cwd,
+    env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: commandTimeoutMs
+  });
+}
+
+function createPackageArtifact(tempRoot) {
+  const artifactDir = path.join(tempRoot, 'artifact');
+  fs.mkdirSync(artifactDir, { recursive: true });
+  const result = runNpm(['pack', '--json', '--pack-destination', artifactDir], rootDir, {
+    ...process.env,
+    npm_config_cache: path.join(tempRoot, 'npm-cache'),
+    npm_config_update_notifier: 'false',
+    npm_config_fund: 'false'
+  });
+  assertSuccess('npm package artifact creation', result);
+  const packed = JSON.parse(formatOutput(result));
+  if (!Array.isArray(packed) || !packed[0] || !packed[0].filename) {
+    throw new Error('npm pack did not return a package artifact');
+  }
+  return path.join(artifactDir, packed[0].filename);
 }
 
 function commandAvailable(command) {
@@ -123,6 +210,9 @@ function findDshCommand(env) {
 }
 
 function assertSuccess(step, result) {
+  if (result.error) {
+    throw new Error(`${step} failed: ${result.error.code || result.error.message}`);
+  }
   if (result.status === 0) return;
 
   const details = formatOutput(result);
@@ -173,9 +263,53 @@ function bootAndStop(command, args, env) {
     const timer = setTimeout(() => {
       if (child.exitCode !== null) return;
       terminateProcess(child);
-      finish(() => resolve({ code: child.exitCode, output }));
+      finish(() => resolve({ code: child.exitCode, output, timedOut: true }));
     }, bootWaitMs);
   });
+}
+
+function findInstalledPackage(profileDir) {
+  const packagePath = path.join(profileDir, 'node_modules', ...packageName.split('/'));
+  if (!fs.existsSync(packagePath)) {
+    throw new Error(`Installed package directory was not found: ${packagePath}`);
+  }
+  return packagePath;
+}
+
+function runDoctor(profileDir, dshHome, profileName) {
+  const installedRoot = findInstalledPackage(profileDir);
+  const doctorPath = path.join(installedRoot, 'bin', 'dsh-memory-plugin.js');
+  if (!fs.existsSync(doctorPath)) throw new Error('Installed package is missing its doctor CLI');
+
+  const fixture = path.join(dshHome, 'profiles', 'node_modules', '@deepseek-ai', 'dsh-memory-plugin-doctor-fixture');
+  fs.mkdirSync(fixture, { recursive: true });
+  fs.writeFileSync(path.join(fixture, 'marker.txt'), 'doctor-fixture');
+
+  const result = spawnSync(process.execPath, [
+    doctorPath,
+    'doctor',
+    '--profile',
+    profileName,
+    '--dsh-home',
+    dshHome,
+    '--fix',
+    '--json'
+  ], {
+    cwd: rootDir,
+    env: process.env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: commandTimeoutMs
+  });
+  assertSuccess('DSH profile doctor', result);
+  const output = JSON.parse(formatOutput(result));
+  if (output.remaining.length !== 0 || fs.existsSync(fixture)) {
+    throw new Error('DSH profile doctor did not remove the simulated physical fallback entry');
+  }
+  if (!output.manifestPath || !fs.existsSync(output.manifestPath)) {
+    throw new Error('DSH profile doctor did not create a repair manifest');
+  }
+  return output;
 }
 
 async function runE2E() {
@@ -194,11 +328,15 @@ async function runE2E() {
   }
   assertDshCompatibility(formatVersion(dsh.version));
 
-  const dshHome = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-memory-e2e-'));
+  const e2eRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-memory-e2e-'));
+  const dshHome = path.join(e2eRoot, 'dsh-home');
+  fs.mkdirSync(dshHome, { recursive: true });
   const profileName = process.env.DSH_E2E_PROFILE || `clean-${process.pid}-${Date.now()}`;
   const env = { ...process.env, DSH_HOME: dshHome };
   const profileDir = path.join(dshHome, 'profiles', profileName);
+  const packageSpec = process.env.DSH_E2E_PACKAGE || createPackageArtifact(e2eRoot);
 
+  let operationError = null;
   try {
     const install = runDsh(
       dsh.command,
@@ -225,18 +363,32 @@ async function runE2E() {
       throw new Error(`Clean profile does not declare ${packageName}`);
     }
 
-    const dump = runDsh(dsh.command, ['--profile', profileName, '--dump-config'], env);
+    const doctor = runDoctor(profileDir, dshHome, profileName);
+    console.log(`DSH profile doctor passed: moved ${doctor.moved.length} physical fallback entries`);
+
+    const dump = await runDshAsync(dsh.command, ['--profile', profileName, '--dump-config'], env, commandTimeoutMs);
     assertSuccess('DSH config dump', dump);
     const dumpOutput = formatOutput(dump);
     if (!dumpOutput.includes(packageName) && !dumpOutput.includes('dsh-memory-plugin')) {
       throw new Error('DSH config dump does not contain the memory plugin bundle');
     }
 
-    await bootAndStop(dsh.command, ['--profile', profileName], env);
+    const boot = await bootAndStop(dsh.command, ['--profile', profileName], env);
+    if (boot.timedOut) {
+      console.log(`DSH profile boot probe remained running for ${bootWaitMs}ms; process tree was terminated after startup observation`);
+    }
     console.log(`DSH clean-profile E2E passed: ${packageName} (${profileName}, DSH ${formatVersion(dsh.version)})`);
+  } catch (error) {
+    operationError = error;
   } finally {
-    fs.rmSync(dshHome, { recursive: true, force: true });
+    try {
+      fs.rmSync(e2eRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch (cleanupError) {
+      if (!operationError) operationError = cleanupError;
+      else console.error(`DSH E2E cleanup warning: ${cleanupError.message}`);
+    }
   }
+  if (operationError) throw operationError;
 }
 
 runE2E().catch((error) => {

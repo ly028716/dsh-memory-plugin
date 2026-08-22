@@ -13,6 +13,16 @@
 
 ## 🔧 安装方法
 
+### 方法 0：使用 npm 包和 DSH CLI（推荐）
+
+```powershell
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+dsh-memory-plugin doctor --profile <name> --fix
+```
+
+doctor 默认只读检查；`--fix` 只把 DSH 共享 `profiles/node_modules` 中的物理冲突目录移动到
+带时间戳的备份目录，不删除文件。GitHub pinned commit 仅用于 CI/复现，并且必须使用完整 40 位 SHA。
+
 ### 方法 1：在 DSH 配置文件中引用（推荐）
 
 在你的项目根目录创建或编辑 `dsh.config.js`：

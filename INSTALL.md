@@ -11,14 +11,14 @@
 
 ## 📦 安装方法
 
-### 方法 1：使用 DSH CLI（推荐）
+### 方法 1：使用 npm 包和 DSH CLI（推荐）
 
 ```bash
-# 进入 DSH profile 目录
-cd C:\Users\Administrator\.dsh\profiles
+# 安装发布的 npm 包
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 
-# 添加记忆插件（使用相对路径或绝对路径）
-dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+# Windows profile 启动前执行安全检查；发现物理 fallback 目录时移动到备份
+dsh-memory-plugin doctor --profile <name> --fix
 ```
 
 ### 方法 2：手动配置
@@ -47,16 +47,18 @@ module.exports = {
 };
 ```
 
-### 方法 3：作为 npm 包（未来支持）
+### 方法 3：使用本地源码或 GitHub pinned commit（CI/复现）
 
 ```bash
-# 首先在 memory-plugin 目录中发布
-cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
-npm publish --access public
+# 本地源码
+dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\dsh-memory-plugin
 
-# 然后在 DSH 中安装
-dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+# CI/复现：将 <full-40-char-sha> 替换为完整 commit SHA
+dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<full-40-char-sha>"
 ```
+
+GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应执行
+`dsh-memory-plugin doctor --profile <name> --fix`。
 
 ## 🔧 安装后验证
 
@@ -68,7 +70,9 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 npm run test:dsh-e2e
 ```
 
-默认通过 `dsh plugin` 安装当前仓库；如需验证已发布 npm 包，可设置 `DSH_E2E_PACKAGE=@ly028716/dsh-memory-plugin`。
+默认先执行 `npm pack`，再通过 `dsh plugin` 安装临时 npm tarball；如需验证已发布 npm 包，可设置
+`DSH_E2E_PACKAGE=@ly028716/dsh-memory-plugin`。E2E 会在启动探测前执行 doctor，并验证备份
+manifest 和物理目录隔离。
 
 兼容的 DSH CLI 版本为 `>=0.1.1-rc.2 <0.2.0`，当前已验证版本为 `0.1.1-rc.2`。E2E 会在执行安装前检查 CLI 版本。
 

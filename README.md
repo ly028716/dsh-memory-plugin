@@ -65,7 +65,17 @@ dsh plugin --profile <name> add /path/to/dsh-memory-plugin
 
 ```bash
 dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+dsh-memory-plugin doctor --profile <name> --fix
 ```
+
+`doctor` 默认只读检查 DSH 共享 fallback 目录；Windows 上如果 DSH 报告某个受管包不是
+junction，请显式执行上面的 `--fix`。它只会把物理目录移动到带时间戳的备份目录，不会删除
+数据。GitHub pinned commit 安装仅用于 CI 和可复现验证，普通用户请使用 npm 包路径。
+
+#### DSH CLI 兼容范围
+
+插件兼容 DSH CLI `>=0.1.1-rc.2 <0.2.0`。真实安装测试会使用 npm packed tarball；GitHub
+源代码安装测试必须锁定完整 40 位 commit SHA。
 
 #### 方式 3：直接集成到代码
 
