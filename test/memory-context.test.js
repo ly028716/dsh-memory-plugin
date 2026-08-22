@@ -78,4 +78,47 @@ describe('buildMemoryContext', () => {
     expect(result.length).toBeLessThanOrEqual(180);
     expect(result).toContain('Memory context');
   });
+
+  test('ignores nested objects in supported entry fields', () => {
+    const result = buildMemoryContext({
+      sessionHistory: {
+        recentTopics: [{ name: { unknown: 'LEAK_ME' } }]
+      }
+    });
+
+    expect(result).toBe('');
+    expect(result).not.toContain('LEAK_ME');
+  });
+
+  test('handles null options and rejects unsafe character limits', () => {
+    expect(() => buildMemoryContext({}, null)).not.toThrow();
+    expect(buildMemoryContext({}, null)).toBe('');
+
+    const result = buildMemoryContext({
+      sessionHistory: {
+        recentTopics: Array.from({ length: 20 }, (_, index) => ({
+          content: `topic-${index}-${'x'.repeat(500)}`
+        }))
+      }
+    }, { maxCharacters: Number.MAX_SAFE_INTEGER + 1 });
+
+    expect(result.length).toBeLessThanOrEqual(4000);
+  });
+
+  test('ignores non-scalar values in supported entry fields', () => {
+    expect(() => buildMemoryContext({
+      sessionHistory: {
+        recentTopics: [
+          { name: { unknown: 'LEAK_ME' } },
+          { path: { unknown: 'LEAK_ME' } },
+          { content: { unknown: 'LEAK_ME' } },
+          { name: 1n }
+        ]
+      }
+    })).not.toThrow();
+
+    expect(buildMemoryContext({
+      sessionHistory: { recentTopics: [{ content: 1n }] }
+    })).toBe('');
+  });
 });
