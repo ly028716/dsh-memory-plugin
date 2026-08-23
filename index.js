@@ -190,6 +190,10 @@ module.exports = {
 
         // Data management
         importData: (data) => memoryManager.importData(data),
+        backup: (reason) => memoryManager.backup(reason),
+        listBackups: () => memoryManager.listBackups(),
+        restoreBackup: (name) => memoryManager.restoreBackup(name),
+        applyRetention: () => memoryManager.applyRetention(),
 
         // Direct storage access (advanced)
         storage: {

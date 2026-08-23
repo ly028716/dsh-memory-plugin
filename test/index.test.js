@@ -114,4 +114,20 @@ describe('default collection policy', () => {
     const serialized = await fs.readFile(testFile, 'utf8');
     expect(serialized).not.toContain('PUBLIC_SERVICE_SECRET');
   });
+
+  test('exposes backup lifecycle operations through the memory service', async () => {
+    plugin.apply(context, {
+      storagePath: testFile,
+      backupOnInitialize: false
+    });
+    await context.services.memory.ready;
+
+    const backup = await context.services.memory.backup();
+    expect(backup.name).toMatch(/-manual\.json$/);
+    expect(await context.services.memory.listBackups()).toHaveLength(1);
+    expect(await context.services.memory.applyRetention()).toEqual({
+      deleted: [],
+      remaining: expect.any(Array)
+    });
+  });
 });
