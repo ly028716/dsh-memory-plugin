@@ -83,6 +83,27 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('test -n "$github_tarball"');
   });
 
+  test('should isolate downloaded package smoke checks and redact installer failures', () => {
+    const installVerifier = fs.readFileSync(path.join(__dirname, '..', 'test-release-install.js'), 'utf8');
+
+    expect(installVerifier).toContain('function createVerificationEnvironment()');
+    expect(installVerifier).toContain('const verificationEnvironmentNames = new Set([');
+    expect(installVerifier).toContain('name.toUpperCase()');
+    for (const environmentName of [
+      'PATH', 'SystemRoot', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'TMPDIR',
+      'HOME', 'USERPROFILE', 'WINDIR', 'LANG', 'LC_ALL', 'TZ'
+    ]) {
+      expect(installVerifier).toContain(`'${environmentName}'`);
+    }
+
+    expect(installVerifier).toContain('if (parsed.username || parsed.password)');
+    expect(installVerifier).toContain('function redactSensitiveText');
+    expect(installVerifier).toContain('redactSensitiveText(value)');
+    expect(installVerifier).toContain('[REDACTED]');
+    expect((installVerifier.match(/cwd: consumerDir/g) || [])).toHaveLength(2);
+    expect((installVerifier.match(/env: verificationEnv/g) || [])).toHaveLength(2);
+  });
+
   test('should verify and publish package artifacts on version tags', () => {
     const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
 

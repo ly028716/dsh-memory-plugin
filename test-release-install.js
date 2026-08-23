@@ -13,6 +13,11 @@ const npmCliPath = [
   path.join(path.dirname(process.execPath), '..', 'node_modules', 'npm', 'bin', 'npm-cli.js')
 ].find((candidate) => candidate && fs.existsSync(candidate));
 const semverPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const verificationEnvironmentNames = new Set([
+  'PATH', 'SystemRoot', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'TMPDIR',
+  'HOME', 'USERPROFILE', 'WINDIR', 'LANG', 'LC_ALL', 'TZ'
+].map((name) => name.toUpperCase()));
+const sensitiveEnvironmentName = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|_KEY$)/i;
 
 function usage() {
   return [
@@ -60,11 +65,17 @@ function parseArguments(argv) {
   };
 
   const registry = values['--registry'] || 'https://registry.npmjs.org';
+  let parsed;
   try {
-    const parsed = new URL(registry);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol');
+    parsed = new URL(registry);
   } catch (_) {
     throw new Error(`Invalid --registry URL: ${registry}`);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Invalid --registry URL: only http and https are supported');
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('Invalid --registry URL: username and password are not allowed');
   }
 
   return {
@@ -88,18 +99,30 @@ function resolveTarball(tarballPath, channel) {
   return resolvedPath;
 }
 
+function redactSensitiveText(value) {
+  let redacted = String(value);
+  const sensitiveValues = Object.entries(process.env)
+    .filter(([name, environmentValue]) => sensitiveEnvironmentName.test(name) && environmentValue)
+    .map(([, environmentValue]) => String(environmentValue))
+    .sort((left, right) => right.length - left.length);
+
+  for (const sensitiveValue of sensitiveValues) {
+    redacted = redacted.split(sensitiveValue).join('[REDACTED]');
+  }
+  return redacted.replace(/(https?:\/\/)[^\s/@]*:[^\s/@]*@/gi, '$1[REDACTED]@');
+}
+
 function summarizeNpmError(error) {
   return [error.message, error.stdout, error.stderr]
     .filter(Boolean)
-    .map((value) => String(value).trim())
+    .map((value) => redactSensitiveText(value).trim())
     .filter(Boolean)
     .join('\n');
 }
 
-function sanitizeVerificationEnvironment() {
-  const sensitiveName = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|_KEY$)/i;
+function createVerificationEnvironment() {
   return Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !sensitiveName.test(name))
+    Object.entries(process.env).filter(([name]) => verificationEnvironmentNames.has(name.toUpperCase()))
   );
 }
 
@@ -178,7 +201,7 @@ function verifyInstalledPackage(channel, consumerDir, version) {
 
   if (!fs.existsSync(installedRoot)) fail(`installed package is missing: ${installedRoot}`);
 
-  const verificationEnv = sanitizeVerificationEnvironment();
+  const verificationEnv = createVerificationEnvironment();
   try {
     const entrySmokeScript = [
       'const installedRoot = process.argv[1];',
@@ -190,7 +213,8 @@ function verifyInstalledPackage(channel, consumerDir, version) {
     execFileSync(process.execPath, ['-e', entrySmokeScript, installedRoot], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: verificationEnv
+      env: verificationEnv,
+      cwd: consumerDir
     });
   } catch (error) {
     fail(`package could not be loaded: ${error.message}`);
@@ -226,7 +250,8 @@ function verifyInstalledPackage(channel, consumerDir, version) {
       {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: verificationEnv
+        env: verificationEnv,
+        cwd: consumerDir
       }
     );
     if (!doctorHelp.includes('dsh-memory-plugin doctor')) {
