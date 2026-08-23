@@ -988,7 +988,18 @@ async function runE2E() {
   if (operationError) throw operationError;
 }
 
-runE2E().catch((error) => {
+async function runLifecycleRegression() {
+  try {
+    const boot = await bootAndStop(process.execPath, ['-e', 'process.exit(0)'], process.env);
+    throw new Error(`short-lived boot was accepted: ${JSON.stringify(boot)}`);
+  } catch (error) {
+    if (!error.message.includes('exited before the observation window')) throw error;
+    console.log(`Lifecycle regression passed: ${error.message}`);
+  }
+}
+
+const entrypoint = process.env.DSH_E2E_LIFECYCLE_REGRESSION === '1' ? runLifecycleRegression : runE2E;
+entrypoint().catch((error) => {
   console.error(`DSH clean-profile E2E failed: ${error.message}`);
   process.exitCode = 1;
 });
