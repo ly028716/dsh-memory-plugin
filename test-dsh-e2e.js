@@ -116,10 +116,22 @@ function windowsProcessSnapshot() {
   }
 }
 
+function unixProcessSnapshot() {
+  if (process.platform === 'win32') return [];
+  const result = spawnSync('ps', ['-eo', 'pid=,ppid='], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  if (result.status !== 0 || result.error) return [];
+  return String(result.stdout || '').split(/\r?\n/).map((line) => {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    return match ? { pid: Number(match[1]), parentPid: Number(match[2]) } : null;
+  }).filter(Boolean);
+}
+
 function processTreePids(pid) {
   if (!pid) return [];
-  if (process.platform !== 'win32') return [pid];
-  const processes = windowsProcessSnapshot();
+  const processes = process.platform === 'win32' ? windowsProcessSnapshot() : unixProcessSnapshot();
   if (processes.length === 0) return [pid];
   const children = new Map();
   for (const process of processes) {
@@ -140,7 +152,7 @@ function processTreePids(pid) {
   return tree;
 }
 
-function terminatePidTree(pid, knownPids = []) {
+function terminatePidTree(pid, knownPids = [], signal = 'SIGTERM') {
   if (!pid) return { requested: false, status: null };
   const treePids = [...new Set([...processTreePids(pid), ...knownPids])];
   if (process.platform === 'win32') {
@@ -164,13 +176,24 @@ function terminatePidTree(pid, knownPids = []) {
       treePids
     };
   } else {
-    try {
-      process.kill(pid, 'SIGTERM');
-      return { requested: true, status: 0, treePids };
-    } catch (error) {
-      if (error.code === 'ESRCH') return { requested: true, status: 0, alreadyExited: true, treePids };
-      return { requested: true, status: null, error, treePids };
+    const errors = [];
+    let signalled = 0;
+    for (const targetPid of [...treePids].reverse()) {
+      try {
+        process.kill(targetPid, signal);
+        signalled += 1;
+      } catch (error) {
+        if (error.code !== 'ESRCH') errors.push(error);
+      }
     }
+    return {
+      requested: true,
+      status: errors.length === 0 ? 0 : null,
+      error: errors[0],
+      signal,
+      signalled,
+      treePids
+    };
   }
 }
 
@@ -225,9 +248,14 @@ function terminateProcessSync(pid) {
   if (!pid) return { requested: false, confirmed: false, remainingPids: [] };
   const request = terminatePidTree(pid);
   const treePids = request.treePids || [pid];
-  const confirmed = waitForProcessExitSync(treePids);
+  let confirmed = waitForProcessExitSync(treePids);
+  let forceTermination;
+  if (!confirmed && process.platform !== 'win32') {
+    forceTermination = terminatePidTree(pid, treePids, 'SIGKILL');
+    confirmed = waitForProcessExitSync(treePids);
+  }
   const remainingPids = treePids.filter((processId) => isProcessAlive(processId));
-  return { ...request, confirmed: confirmed && remainingPids.length === 0, remainingPids };
+  return { ...request, confirmed: confirmed && remainingPids.length === 0, remainingPids, forceTermination };
 }
 
 function runDsh(command, args, env, timeoutMs = commandTimeoutMs) {
@@ -593,9 +621,19 @@ function assertSuccess(step, result) {
 async function terminateProcess(child, knownPids = []) {
   const request = terminatePidTree(child.pid, knownPids);
   const treePids = request.treePids || [child.pid];
-  const confirmed = await waitForProcessExit(treePids);
+  let confirmed = await waitForProcessExit(treePids);
+  let forceTermination;
+  if (!confirmed && process.platform !== 'win32') {
+    forceTermination = terminatePidTree(child.pid, treePids, 'SIGKILL');
+    confirmed = await waitForProcessExit(treePids);
+  }
   const remainingPids = treePids.filter((pid) => isProcessAlive(pid));
-  return { ...request, confirmed: confirmed && remainingPids.length === 0, remainingPids };
+  return {
+    ...request,
+    confirmed: confirmed && remainingPids.length === 0,
+    remainingPids,
+    forceTermination
+  };
 }
 
 function bootAndStop(command, args, env) {
@@ -610,6 +648,11 @@ function bootAndStop(command, args, env) {
     let settled = false;
     let stopRequested = false;
     let observedExit = null;
+    let observedExitAt = null;
+    let terminationStartedAt = null;
+    let terminationConfirmedAt = null;
+    let resolveExitObserved;
+    const exitObserved = new Promise((resolve) => { resolveExitObserved = resolve; });
     let startupError = null;
     const startupErrorPattern = /(?:plugin tree failed|did not activate|uncaught|unhandled rejection|dsh:\s+.*(?:failed|error)|ERR_[A-Z_]+)/i;
 
@@ -627,12 +670,19 @@ function bootAndStop(command, args, env) {
     child.stdout.on('data', captureOutput);
     child.stderr.on('data', captureOutput);
     child.on('error', (error) => {
-      if (stopRequested) return;
+      if (stopRequested) {
+        observedExit = { code: null, signal: null, error: error.message };
+        observedExitAt = Date.now();
+        resolveExitObserved(observedExit);
+        return;
+      }
       finish(() => reject(error));
     });
     child.on('exit', (code, signal) => {
+      observedExit = { code, signal };
+      observedExitAt = Date.now();
+      resolveExitObserved(observedExit);
       if (stopRequested) {
-        observedExit = { code, signal };
         return;
       }
       finish(() => {
@@ -644,16 +694,47 @@ function bootAndStop(command, args, env) {
           reject(new Error(`DSH profile boot reported a startup error:\n${startupError}`));
           return;
         }
-        resolve({ code, signal, output, exited: true, exitConfirmed: true });
+        resolve({
+          code,
+          signal,
+          output,
+          exited: true,
+          exitConfirmed: true,
+          observedExit,
+          termination: { requested: false, confirmed: true, alreadyExited: true },
+          exitBeforeTermination: true,
+          exitBeforeTerminationConfirmation: true,
+          terminationForced: false
+        });
       });
     });
 
     const timer = setTimeout(() => {
-      if (child.exitCode !== null) return;
+      if (settled) return;
       stopRequested = true;
-      terminateProcess(child).then((termination) => {
+      terminationStartedAt = Date.now();
+      terminateProcess(child).then(async (termination) => {
+        if (!observedExit) {
+          await Promise.race([
+            exitObserved,
+            new Promise((resolveExitWait) => setTimeout(resolveExitWait, 100))
+          ]);
+        }
+        if (termination.confirmed) terminationConfirmedAt = Date.now();
+        const exitBeforeTermination = observedExitAt !== null && observedExitAt < terminationStartedAt;
+        const exitBeforeTerminationConfirmation = terminationConfirmedAt !== null && observedExitAt !== null && observedExitAt < terminationConfirmedAt;
+        const terminationForced = Boolean(
+          termination.requested &&
+          termination.confirmed &&
+          !exitBeforeTermination &&
+          (termination.status === 0 || termination.forceTermination?.status === 0)
+        );
         if (!termination.confirmed) {
-          finish(() => reject(new Error(`DSH profile boot process tree did not terminate after the observation window:\n${output.trim()}`)));
+          finish(() => reject(new Error(`DSH profile boot process tree did not terminate after the observation window: ${JSON.stringify({ observedExit, termination, exitBeforeTermination, exitBeforeTerminationConfirmation })}\n${output.trim()}`)));
+          return;
+        }
+        if (observedExit && observedExit.code !== 0 && !terminationForced) {
+          finish(() => reject(new Error(`DSH profile boot exited non-zero during shutdown without forced-termination evidence: ${JSON.stringify({ observedExit, termination, exitBeforeTermination, exitBeforeTerminationConfirmation })}\n${output.trim()}`)));
           return;
         }
         if (startupError) {
@@ -665,8 +746,13 @@ function bootAndStop(command, args, env) {
           signal: observedExit?.signal,
           output,
           timedOut: true,
-          terminationConfirmed: true,
-          terminated: true
+          terminationConfirmed: termination.confirmed,
+          terminated: true,
+          observedExit,
+          termination,
+          exitBeforeTermination,
+          exitBeforeTerminationConfirmation,
+          terminationForced
         }));
       }).catch((error) => finish(() => reject(error)));
     }, bootWaitMs);
@@ -718,6 +804,9 @@ function runDoctor(profileDir, dshHome, profileName) {
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: commandTimeoutMs
     });
+    if (result.error && result.error.code === 'ETIMEDOUT') {
+      result.termination = terminateProcessSync(result.pid);
+    }
     assertSuccess(`DSH profile doctor pass ${passes + 1}`, result);
     try {
       output = JSON.parse(formatOutput(result));
