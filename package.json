@@ -11,6 +11,11 @@
     "url": "https://github.com/ly028716/dsh-memory-plugin/issues"
   },
   "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "dsh-memory-plugin": "bin/dsh-memory-plugin.js"
   },
@@ -26,6 +31,9 @@
     "profile-doctor.js",
     "bin",
     "index.js",
+    "client.js",
+    "memory-context.js",
+    "memory-tool.js",
     "memory-settings.js",
     "limits.js",
     "memory-manager.js",
@@ -48,7 +56,7 @@
     "test:package": "node test-package.js",
     "test:pinned-commit": "node test-pinned-commit.js",
     "test:dsh-e2e": "node test-dsh-e2e.js",
-    "check": "node --check index.js && node --check config.js && node --check limits.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
+    "check": "node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
@@ -70,9 +78,17 @@
     "jest": "^29.7.0"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.1-rc.2 <0.2.0",
     "@deepseek-ai/schemastery": ">=3.18.1 <4.0.0"
   },
   "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-client-runtime": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
     "@deepseek-ai/schemastery": {
       "optional": true
     }
@@ -83,6 +99,13 @@
     },
     "compatibility": {
       "cli": ">=0.1.1-rc.2 <0.2.0"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
     }
   }
 }
