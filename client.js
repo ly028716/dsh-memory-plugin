@@ -183,7 +183,7 @@
     }
 
     module.exports = {
-      inject: ['slots', 'settingsScope'],
+      inject: ['slots', 'locale', 'connection', 'remote', 'settingsScope'],
       MEMORY_NAMESPACE,
       MEMORY_LOCALE_NAMESPACE,
       SETTINGS_FIELDS,
