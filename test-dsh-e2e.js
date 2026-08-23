@@ -649,6 +649,7 @@ function runDoctor(profileDir, dshHome, profileName) {
 
   const moved = [];
   let output;
+  let manifestPath;
   let passes = 0;
   for (; passes < 8; passes += 1) {
     const result = spawnSync(process.execPath, [
@@ -677,6 +678,7 @@ function runDoctor(profileDir, dshHome, profileName) {
       throw new Error('DSH profile doctor returned an invalid repair result');
     }
     moved.push(...output.moved);
+    if (output.manifestPath && fs.existsSync(output.manifestPath)) manifestPath = output.manifestPath;
     if (output.moved.length === 0) break;
   }
   if (!output || output.moved.length !== 0) {
@@ -685,10 +687,10 @@ function runDoctor(profileDir, dshHome, profileName) {
   if (output.remaining.length !== 0 || fs.existsSync(fixture)) {
     throw new Error(`DSH profile doctor left physical fallback conflicts: ${output.remaining.map((entry) => entry.relativePath || entry).join(', ') || 'fixture'}`);
   }
-  if (!output.manifestPath || !fs.existsSync(output.manifestPath)) {
+  if (!manifestPath) {
     throw new Error('DSH profile doctor did not create a repair manifest');
   }
-  return { ...output, moved, passes };
+  return { ...output, moved, passes, manifestPath };
 }
 
 async function runE2E() {
