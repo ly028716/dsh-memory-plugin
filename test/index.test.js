@@ -3,6 +3,10 @@ const os = require('os');
 const path = require('path');
 const plugin = require('../index');
 
+test('declares the DSH host capabilities required by the plugin', () => {
+  expect(plugin.inject).toEqual(['systemPrompt', 'tools', 'settings']);
+});
+
 function createContext() {
   return {
     listeners: [],
