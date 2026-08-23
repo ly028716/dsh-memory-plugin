@@ -426,12 +426,26 @@ async function findProfileBootModule(dshRoot) {
     .filter((entry) => /^profile-boot-.*\.js$/.test(entry))
     .sort();
   if (candidates.length === 0) throw new Error(`host probe unavailable: no profile-boot-*.js in ${libRoot}`);
-  const modulePath = path.join(libRoot, candidates[0]);
-  const module = await import(require('url').pathToFileURL(modulePath).href);
-  if (typeof module.runProfile !== 'function') {
-    throw new Error(`host probe unavailable: ${modulePath} does not export runProfile`);
+  let runProfile;
+  let prepareProfile;
+  let runProfilePath;
+  let prepareProfilePath;
+  for (const candidate of candidates) {
+    const modulePath = path.join(libRoot, candidate);
+    const module = await import(require('url').pathToFileURL(modulePath).href);
+    if (!runProfile && typeof module.runProfile === 'function') {
+      runProfile = module.runProfile;
+      runProfilePath = modulePath;
+    }
+    const candidatePrepareProfile = module.prepareProfile || module.i;
+    if (!prepareProfile && typeof candidatePrepareProfile === 'function') {
+      prepareProfile = candidatePrepareProfile;
+      prepareProfilePath = modulePath;
+    }
   }
-  return module;
+  if (!runProfile) throw new Error(`host probe unavailable: no profile-boot module exports runProfile in ${libRoot}`);
+  if (!prepareProfile) throw new Error(`host probe unavailable: no profile-boot module exports prepareProfile/i in ${libRoot}`);
+  return { runProfile, prepareProfile, runProfilePath, prepareProfilePath };
 }
 
 function removeProbeRoot(probeRoot) {
@@ -717,6 +731,34 @@ function runDoctor(profileDir, dshHome, profileName) {
   return { ...output, moved, passes, manifestPath };
 }
 
+async function prepareProfileWithRepair({ dshCommand, dshHome, profileName, profileDir, dshVersion }) {
+  const dshPackage = findDshPackageRoot(dshCommand, dshVersion);
+  if (!dshPackage) throw new Error('DSH profile prepare unavailable: DSH package root could not be resolved');
+  const profileBoot = await findProfileBootModule(dshPackage.root);
+  const previousDshHome = process.env.DSH_HOME;
+  const fallbackError = /exists and is not a symlink|manage the installation fallback/i;
+  try {
+    process.env.DSH_HOME = dshHome;
+    let lastError;
+    for (let attempt = 1; attempt <= 16; attempt += 1) {
+      try {
+        profileBoot.prepareProfile(profileName, true);
+        console.log(`DSH profile prepare passed on attempt ${attempt}`);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!fallbackError.test(error.message || '')) throw error;
+        const repair = runDoctor(profileDir, dshHome, profileName);
+        console.log(`DSH profile prepare repair ${attempt} passed: moved ${repair.moved.length} physical fallback entries`);
+      }
+    }
+    throw new Error(`DSH profile prepare did not converge after 16 attempts: ${lastError?.message || 'unknown error'}`);
+  } finally {
+    if (previousDshHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previousDshHome;
+  }
+}
+
 async function runE2E() {
   const probeEnv = { ...process.env };
   const dsh = findDshCommand(probeEnv);
@@ -774,6 +816,13 @@ async function runE2E() {
     }
     console.log(`DSH profile doctor passed: moved ${doctor.moved.length} physical fallback entries`);
 
+    await prepareProfileWithRepair({
+      dshCommand: dsh.command,
+      dshHome,
+      profileName,
+      profileDir,
+      dshVersion: formatVersion(dsh.version)
+    });
     const dump = runDsh(dsh.command, ['--profile', profileName, '--dump-config'], env, configDumpTimeoutMs);
     assertSuccess('DSH config dump', dump);
     const dumpOutput = formatOutput(dump);
