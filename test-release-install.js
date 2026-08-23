@@ -17,7 +17,6 @@ const verificationEnvironmentNames = new Set([
   'PATH', 'SystemRoot', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'TMPDIR',
   'HOME', 'USERPROFILE', 'WINDIR', 'LANG', 'LC_ALL', 'TZ'
 ].map((name) => name.toUpperCase()));
-const sensitiveEnvironmentName = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|_KEY$)/i;
 
 function usage() {
   return [
@@ -69,7 +68,7 @@ function parseArguments(argv) {
   try {
     parsed = new URL(registry);
   } catch (_) {
-    throw new Error(`Invalid --registry URL: ${registry}`);
+    throw new Error('Invalid --registry URL');
   }
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     throw new Error('Invalid --registry URL: only http and https are supported');
@@ -99,10 +98,14 @@ function resolveTarball(tarballPath, channel) {
   return resolvedPath;
 }
 
-function redactSensitiveText(value) {
+function redactSecrets(value, environment = process.env) {
   let redacted = String(value);
-  const sensitiveValues = Object.entries(process.env)
-    .filter(([name, environmentValue]) => sensitiveEnvironmentName.test(name) && environmentValue)
+  const sensitiveValues = Object.entries(environment)
+    .filter(([name, environmentValue]) => (
+      !verificationEnvironmentNames.has(name.toUpperCase()) &&
+      typeof environmentValue === 'string' &&
+      environmentValue.length >= 4
+    ))
     .map(([, environmentValue]) => String(environmentValue))
     .sort((left, right) => right.length - left.length);
 
@@ -115,14 +118,14 @@ function redactSensitiveText(value) {
 function summarizeNpmError(error) {
   return [error.message, error.stdout, error.stderr]
     .filter(Boolean)
-    .map((value) => redactSensitiveText(value).trim())
+    .map((value) => redactSecrets(value).trim())
     .filter(Boolean)
     .join('\n');
 }
 
-function createVerificationEnvironment() {
+function createVerificationEnvironment(environment = process.env) {
   return Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => verificationEnvironmentNames.has(name.toUpperCase()))
+    Object.entries(environment).filter(([name]) => verificationEnvironmentNames.has(name.toUpperCase()))
   );
 }
 
@@ -291,9 +294,13 @@ function main() {
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`Release installation verification failed: ${error.message}`);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`Release installation verification failed: ${error.message}`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = { createVerificationEnvironment, redactSecrets };

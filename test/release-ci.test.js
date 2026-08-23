@@ -86,7 +86,7 @@ describe('release CI configuration', () => {
   test('should isolate downloaded package smoke checks and redact installer failures', () => {
     const installVerifier = fs.readFileSync(path.join(__dirname, '..', 'test-release-install.js'), 'utf8');
 
-    expect(installVerifier).toContain('function createVerificationEnvironment()');
+    expect(installVerifier).toContain('function createVerificationEnvironment(');
     expect(installVerifier).toContain('const verificationEnvironmentNames = new Set([');
     expect(installVerifier).toContain('name.toUpperCase()');
     for (const environmentName of [
@@ -97,8 +97,8 @@ describe('release CI configuration', () => {
     }
 
     expect(installVerifier).toContain('if (parsed.username || parsed.password)');
-    expect(installVerifier).toContain('function redactSensitiveText');
-    expect(installVerifier).toContain('redactSensitiveText(value)');
+    expect(installVerifier).toContain('function redactSecrets');
+    expect(installVerifier).toContain('redactSecrets(value)');
     expect(installVerifier).toContain('[REDACTED]');
     expect((installVerifier.match(/cwd: consumerDir/g) || [])).toHaveLength(2);
     expect((installVerifier.match(/env: verificationEnv/g) || [])).toHaveLength(2);
