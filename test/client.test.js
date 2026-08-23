@@ -1,0 +1,144 @@
+const packageJson = require('../package.json');
+
+function loadClient() {
+  return require('../client');
+}
+
+function createContext(overrides = {}) {
+  const settingsScope = {
+    bind: jest.fn(() => ({
+      values: {
+        trackToolCalls: false,
+        trackPreferences: true,
+        trackProjectContext: false,
+        trackSessionHistory: true,
+        enableRecommendations: true,
+        allowClearMemory: false
+      },
+      update: jest.fn(),
+      subscribe: jest.fn(() => jest.fn())
+    }))
+  };
+  const slots = { register: jest.fn(() => jest.fn()) };
+  const effects = [];
+  return {
+    get: jest.fn((name) => ({ slots, settingsScope }[name])),
+    slots,
+    settingsScope,
+    effects,
+    effect: jest.fn((factory) => {
+      const dispose = factory();
+      effects.push(dispose);
+      return dispose;
+    }),
+    ...overrides
+  };
+}
+
+afterEach(() => {
+  jest.resetModules();
+});
+
+test('publishes optional DSH client metadata and package export', () => {
+  expect(packageJson.exports['./client']).toBe('./client.js');
+  expect(packageJson.exports['.']).toBe('./index.js');
+  expect(packageJson.dsh.client.platform).toBe('web');
+  expect(packageJson.dsh.client.inject).toEqual(expect.arrayContaining([
+    '@deepseek-ai/dsh-client-runtime',
+    '@deepseek-ai/dsh-client-ui-settings'
+  ]));
+  expect(packageJson.files).toEqual(expect.arrayContaining(['client.js']));
+  expect(packageJson.main).toBe('index.js');
+});
+
+test('client module can be required without optional Web runtime packages', () => {
+  jest.isolateModules(() => {
+    const client = loadClient();
+    expect(typeof client.apply).toBe('function');
+    expect(typeof client.MEMORY_NAMESPACE).toBe('string');
+  });
+});
+
+test('apply safely returns when slots capability is missing', () => {
+  const { apply } = loadClient();
+  const ctx = createContext({ get: jest.fn(() => undefined) });
+
+  expect(() => apply(ctx)).not.toThrow();
+  expect(ctx.effect).not.toHaveBeenCalled();
+});
+
+test('apply safely returns when settingsScope capability is missing', () => {
+  const { apply } = loadClient();
+  const ctx = createContext({
+    get: jest.fn((name) => name === 'slots' ? ctx.slots : undefined)
+  });
+
+  expect(() => apply(ctx)).not.toThrow();
+  expect(ctx.slots.register).not.toHaveBeenCalled();
+  expect(ctx.effect).not.toHaveBeenCalled();
+});
+
+test('registers the keyed Memory settings card with the namespace and six booleans', () => {
+  const { apply, MEMORY_NAMESPACE, SETTINGS_FIELDS } = loadClient();
+  const ctx = createContext();
+
+  apply(ctx);
+
+  expect(ctx.settingsScope.bind).toHaveBeenCalledWith({ namespace: MEMORY_NAMESPACE });
+  expect(ctx.settingsScope.bind).toHaveBeenCalledWith({ namespace: 'dsh-memory' });
+  expect(ctx.slots.register).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'settings.plugin.item',
+    key: 'dsh-memory',
+    inject: expect.any(Function)
+  }), expect.anything());
+  expect(SETTINGS_FIELDS).toEqual([
+    'trackToolCalls',
+    'trackPreferences',
+    'trackProjectContext',
+    'trackSessionHistory',
+    'enableRecommendations',
+    'allowClearMemory'
+  ]);
+
+  const [definition, card] = ctx.slots.register.mock.calls[0];
+  expect(definition.locale).toBeTruthy();
+  expect(typeof definition.inject).toBe('function');
+  expect(card).toBeTruthy();
+  expect(ctx.effect).toHaveBeenCalledTimes(1);
+});
+
+test('card injection exposes only boolean settings and binding status', () => {
+  const { apply } = loadClient();
+  const ctx = createContext();
+  apply(ctx);
+
+  const [definition] = ctx.slots.register.mock.calls[0];
+  const injected = definition.inject();
+
+  expect(Object.keys(injected.fields).sort()).toEqual([
+    'allowClearMemory',
+    'enableRecommendations',
+    'trackPreferences',
+    'trackProjectContext',
+    'trackSessionHistory',
+    'trackToolCalls'
+  ]);
+  expect(Object.values(injected.fields).every((field) => field.type === 'boolean')).toBe(true);
+  expect(injected.status).toEqual(expect.objectContaining({
+    writable: expect.any(Boolean),
+    dirty: expect.any(Boolean),
+    failed: expect.any(Boolean)
+  }));
+  expect(Object.keys(injected).join(' ')).not.toMatch(/clear|export/i);
+});
+
+test('registered disposer is safe to invoke', () => {
+  const { apply } = loadClient();
+  const slotDispose = jest.fn();
+  const ctx = createContext();
+  ctx.slots.register.mockReturnValue(slotDispose);
+
+  apply(ctx);
+  expect(() => ctx.effects[0]()).not.toThrow();
+  expect(slotDispose).toHaveBeenCalledTimes(1);
+});
