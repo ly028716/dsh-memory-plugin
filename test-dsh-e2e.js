@@ -822,6 +822,7 @@ async function runE2E() {
       throw new Error(`Clean profile does not declare ${packageName}`);
     }
 
+    fs.writeFileSync(path.join(profileDir, 'cordis.patch.yml'), profileTestPatch);
     assertProfileTestPatch(profileDir);
     const doctor = runDoctor(profileDir, dshHome, profileName);
     if (!Number.isInteger(doctor.passes) || doctor.passes < 1) {
