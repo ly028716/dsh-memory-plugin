@@ -70,7 +70,9 @@ describe('release CI configuration', () => {
     expect(installVerifier).toContain("'open-viewer.cmd'");
     expect(installVerifier).toContain('installFromNpm');
     expect(installVerifier).toContain('installFromTarball');
-    expect(workflow).toContain('npm publish dist/*.tgz --access public --provenance');
+    expect(workflow).toContain(
+      'npm publish "dist/${{ needs.verify.outputs.artifact_name }}" --access public --provenance'
+    );
     expect(workflow).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
     expect(workflow).toContain('gh release download');
     expect(workflow).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
@@ -81,6 +83,68 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('--version "$release_version"');
     expect(workflow).toContain('--github-tarball "$github_tarball"');
     expect(workflow).toContain('test -n "$github_tarball"');
+  });
+
+  test('should isolate release publishing and installation verification with least-privilege jobs', () => {
+    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const jobBlock = (name) => {
+      const start = workflow.indexOf(`  ${name}:\n`);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const remainder = workflow.slice(start + 1);
+      const next = remainder.search(/\n  [A-Za-z0-9_-]+:\n/);
+      return workflow.slice(start, next === -1 ? undefined : start + 1 + next);
+    };
+
+    const verify = jobBlock('verify');
+    const publishNpm = jobBlock('publish-npm');
+    const createDraftRelease = jobBlock('create-draft-release');
+    const verifyReleaseInstall = jobBlock('verify-release-install');
+    const publishRelease = jobBlock('publish-release');
+
+    expect(verify).toContain('contents: read');
+    expect(verify).not.toContain('contents: write');
+    expect(verify).not.toContain('id-token: write');
+    expect(publishNpm).toContain('needs: verify');
+    expect(publishNpm).toContain('contents: read');
+    expect(publishNpm).toContain('id-token: write');
+    expect(publishNpm).not.toContain('contents: write');
+    expect(createDraftRelease).toContain('needs: [verify, publish-npm]');
+    expect(createDraftRelease).toContain('contents: write');
+    expect(createDraftRelease).not.toContain('id-token: write');
+    expect(verifyReleaseInstall).toContain('needs: [verify, create-draft-release]');
+    expect(verifyReleaseInstall).toContain('contents: read');
+    expect(verifyReleaseInstall).not.toContain('contents: write');
+    expect(verifyReleaseInstall).not.toContain('id-token: write');
+    expect(publishRelease).toContain('needs: verify-release-install');
+    expect(publishRelease).toContain('contents: write');
+    expect(publishRelease).not.toContain('id-token: write');
+
+    expect(workflow).toContain('npm pack --json --pack-destination dist > dist/pack-result.json');
+    expect(workflow).toContain("const artifactName = result[0].filename;");
+    expect(workflow).toContain('echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"');
+    expect(workflow).toContain('artifact_name: ${{ steps.package.outputs.artifact_name }}');
+    expect(workflow).toContain('path: dist/${{ steps.package.outputs.artifact_name }}');
+    expect(workflow).toContain('name: dsh-memory-plugin-${{ github.ref_name }}');
+    expect(workflow).not.toContain("'*.tgz'");
+    expect(workflow).not.toContain('find "$RUNNER_TEMP/release-artifact"');
+
+    expect(createDraftRelease).toContain('gh release create "$GITHUB_REF_NAME" "dist/${{ needs.verify.outputs.artifact_name }}" --repo "$GITHUB_REPOSITORY" --draft --generate-notes');
+    expect(verifyReleaseInstall).toContain('gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern "${{ needs.verify.outputs.artifact_name }}" --dir "$RUNNER_TEMP/release-artifact"');
+    expect(verifyReleaseInstall).toContain('github_tarball="$RUNNER_TEMP/release-artifact/${{ needs.verify.outputs.artifact_name }}"');
+    expect(publishRelease).toContain('gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false');
+
+    expect((workflow.match(/NODE_AUTH_TOKEN:/g) || [])).toHaveLength(1);
+    expect((workflow.match(/GH_TOKEN:/g) || [])).toHaveLength(3);
+    expect(publishNpm).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
+    expect(createDraftRelease).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
+    expect(verifyReleaseInstall).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
+    expect(publishRelease).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
+    const verificationStep = verifyReleaseInstall.slice(
+      verifyReleaseInstall.indexOf('      - name: Verify published npm and GitHub artifact installations')
+    );
+    expect(verificationStep).not.toContain('env:');
+    expect(verificationStep).not.toContain('NODE_AUTH_TOKEN:');
+    expect(verificationStep).not.toContain('GH_TOKEN:');
   });
 
   test('should isolate downloaded package smoke checks and redact installer failures', () => {
