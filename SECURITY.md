@@ -11,7 +11,7 @@
 
 ## 报告漏洞 / Reporting a Vulnerability
 
-请勿通过公开 Issue 披露漏洞。请通过 GitHub 账户 `ly028716` 的私密联系渠道提交报告，并在报告中提供：
+安全研究者请通过 [GitHub 私密漏洞报告表单](https://github.com/ly028716/dsh-memory-plugin/security/advisories/new) 提交报告。请勿通过公开 Issue 披露漏洞。若该表单不可访问，请不要公开漏洞细节，并通过仓库维护者的私密联系渠道寻求替代方式。报告中请提供：
 
 - 受影响的版本；
 - 影响范围；

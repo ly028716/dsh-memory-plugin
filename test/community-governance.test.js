@@ -15,6 +15,8 @@ describe('community governance document contract', () => {
     expect(content).toContain('1.0.x');
     expect(content).toContain('请勿通过公开 Issue 披露漏洞');
     expect(content).toContain('7 个自然日');
+    expect(content).toContain('GitHub 私密漏洞报告表单');
+    expect(content).toContain('https://github.com/ly028716/dsh-memory-plugin/security/advisories/new');
   });
 
   test('CHANGELOG.md provides unreleased and security release sections', () => {
