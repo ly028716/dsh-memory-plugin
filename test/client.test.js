@@ -117,7 +117,7 @@ test('browser script hands a lazy CJS factory to DSH ModuleLoader', () => {
     throw new Error(`unexpected browser dependency: ${id}`);
   });
   const client = handoff.factory(fakeRequire);
-  expect(client.inject).toEqual(['slots', 'settingsScope']);
+  expect(client.inject).toEqual(['slots', 'locale', 'connection', 'remote', 'settingsScope']);
   expect(typeof client.apply).toBe('function');
 
   const binding = {
