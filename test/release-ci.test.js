@@ -56,14 +56,18 @@ describe('release CI configuration', () => {
     expect(installVerifier).toContain('--github-tarball');
     expect(installVerifier).toContain('npm_config_registry');
     expect(installVerifier).toContain('doctor');
-    expect(installVerifier).toContain('viewer.html');
-    expect(installVerifier).toContain('require(installedRoot)');
-    expect(installVerifier).toMatch(
-      /(?:assert\.(?:strictEqual|equal)\(\s*installedPackage\.version\s*,\s*expectedVersion|installedPackage\.version\s*!==?\s*expectedVersion)/
-    );
+    expect(installVerifier).toContain('const plugin = require(installedRoot)');
+    expect(installVerifier).toContain("plugin.name !== 'memory'");
+    expect(installVerifier).toContain("typeof plugin.apply !== 'function'");
+    expect(installVerifier).toContain('installedPackage.version !== version');
     expect(installVerifier).toContain('installedPackage.dsh.bundle.patch');
-    expect(installVerifier).toContain('premium-viewer.html');
-    expect(installVerifier).toContain('open-viewer.cmd');
+    expect(installVerifier).toContain("'dsh-memory-plugin.js'");
+    expect(installVerifier).toContain("'profile-doctor.js'");
+    expect(installVerifier).toContain("'doctor', '--help'");
+    expect(installVerifier).toContain("'dsh-memory-plugin doctor'");
+    expect(installVerifier).toContain("'viewer.html'");
+    expect(installVerifier).toContain("'premium-viewer.html'");
+    expect(installVerifier).toContain("'open-viewer.cmd'");
     expect(installVerifier).toContain('installFromNpm');
     expect(installVerifier).toContain('installFromTarball');
     expect(workflow).toContain('npm publish dist/*.tgz --access public --provenance');
@@ -71,9 +75,9 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('gh release download');
     expect(workflow).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
     expect(workflow).toContain('release_version="${GITHUB_REF_NAME#v}"');
-    expect(workflow).toContain(
-      'npm run test:release-install -- --version "$release_version" --github-tarball'
-    );
+    expect(workflow).toContain('--version "$release_version"');
+    expect(workflow).toContain('--github-tarball "$github_tarball"');
+    expect(workflow).toContain('test -n "$github_tarball"');
   });
 
   test('should verify and publish package artifacts on version tags', () => {
