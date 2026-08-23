@@ -44,6 +44,26 @@ describe('release CI configuration', () => {
     expect(fs.existsSync(path.join(__dirname, '..', 'playwright.config.js'))).toBe(true);
   });
 
+  test('should verify npm registry and GitHub Release tarball installations after publishing', () => {
+    const rootDir = path.join(__dirname, '..');
+    const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+
+    expect(packageJson.scripts['test:release-install']).toBe('node test-release-install.js');
+
+    const installVerifier = fs.readFileSync(path.join(rootDir, 'test-release-install.js'), 'utf8');
+    const workflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'release.yml'), 'utf8');
+
+    expect(installVerifier).toContain('--github-tarball');
+    expect(installVerifier).toContain('npm_config_registry');
+    expect(installVerifier).toContain('doctor');
+    expect(installVerifier).toContain('viewer.html');
+    expect(workflow).toContain('npm publish dist/*.tgz --access public --provenance');
+    expect(workflow).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
+    expect(workflow).toContain('gh release download');
+    expect(workflow).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
+    expect(workflow).toContain('npm run test:release-install');
+  });
+
   test('should verify and publish package artifacts on version tags', () => {
     const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
 
