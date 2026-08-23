@@ -57,15 +57,19 @@ class DataLifecycleManager {
     }
   }
 
-  async writeSnapshot(data, reason) {
+  async writeSnapshot(data, reason, raw = false) {
     await this.ensureBackupDir();
     const timestamp = new Date().toISOString().replace(/[-:.]/g, '').replace('Z', 'Z');
     const token = crypto.randomBytes(4).toString('hex');
     const name = `memory-${timestamp}-${token}-${reason}.json`;
     const destination = this.safeBackupPath(name);
     const temporary = `${destination}.${process.pid}.${Date.now()}.tmp`;
-    const content = JSON.stringify(data, null, 2);
-    assertDataWithinLimits(data, 'backup data', INPUT_LIMITS.maxMemoryFileBytes);
+    const content = raw ? data : JSON.stringify(data, null, 2);
+    if (raw) {
+      assertDataWithinLimits(Buffer.byteLength(content, 'utf8'), 'backup file', INPUT_LIMITS.maxMemoryFileBytes);
+    } else {
+      assertDataWithinLimits(data, 'backup data', INPUT_LIMITS.maxMemoryFileBytes);
+    }
 
     try {
       const handle = await fs.open(temporary, 'w', 0o600);
@@ -100,9 +104,16 @@ class DataLifecycleManager {
     return this.writeSnapshot(this.storage.exportData(), normalizedReason);
   }
 
+  async backupFile(reason = 'startup') {
+    const normalizedReason = this.normalizeReason(reason);
+    const content = await fs.readFile(this.storage.storagePath, 'utf8');
+    return this.writeSnapshot(content, normalizedReason, true);
+  }
+
   parseReason(name) {
-    const match = /^memory-.+-([A-Za-z0-9_]+)\.json$/.exec(name);
-    return match ? match[1] : 'unknown';
+    const withoutPrefix = name.replace(/^memory-/, '').replace(/\.json$/, '');
+    const segments = withoutPrefix.split('-');
+    return segments.length >= 3 ? segments.slice(2).join('-') : 'unknown';
   }
 
   async listBackups() {

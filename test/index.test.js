@@ -130,4 +130,21 @@ describe('default collection policy', () => {
       remaining: expect.any(Array)
     });
   });
+
+  test('creates a startup backup before migrating an existing data file', async () => {
+    await fs.writeFile(testFile, JSON.stringify({
+      version: '1.0.0',
+      metadata: { createdAt: '2026-01-01T00:00:00.000Z' },
+      userPreferences: { defaultModel: 'legacy-model' }
+    }));
+
+    plugin.apply(context, { storagePath: testFile });
+    await context.services.memory.ready;
+
+    const backups = await context.services.memory.listBackups();
+    expect(backups).toHaveLength(1);
+    expect(backups[0].reason).toBe('startup');
+    expect(JSON.parse(await fs.readFile(backups[0].path, 'utf8')).version).toBe('1.0.0');
+    expect(JSON.parse(await fs.readFile(testFile, 'utf8')).version).toBe('1.1.0');
+  });
 });

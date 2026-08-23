@@ -33,7 +33,7 @@ class MemoryManager {
       if (this.config.backupOnInitialize) {
         try {
           await fs.access(this.storage.storagePath);
-          await this.lifecycle.backup('startup');
+          await this.lifecycle.backupFile('startup');
         } catch (error) {
           if (error.code !== 'ENOENT') throw error;
         }
