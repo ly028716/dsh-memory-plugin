@@ -152,6 +152,10 @@ function processTreePids(pid) {
   return tree;
 }
 
+function mergeProcessTreePids(pid, knownPids) {
+  return [...new Set([...(knownPids || []), ...processTreePids(pid)])];
+}
+
 function terminatePidTree(pid, knownPids = [], signal = 'SIGTERM') {
   if (!pid) return { requested: false, status: null };
   const treePids = [...new Set([...processTreePids(pid), ...knownPids])];
@@ -247,12 +251,15 @@ function waitForProcessExitSync(pids, timeoutMs = 5000) {
 function terminateProcessSync(pid) {
   if (!pid) return { requested: false, confirmed: false, remainingPids: [] };
   const request = terminatePidTree(pid);
-  const treePids = request.treePids || [pid];
+  let treePids = mergeProcessTreePids(pid, request.treePids || [pid]);
   let confirmed = waitForProcessExitSync(treePids);
+  treePids = mergeProcessTreePids(pid, treePids);
   let forceTermination;
   if (!confirmed && process.platform !== 'win32') {
     forceTermination = terminatePidTree(pid, treePids, 'SIGKILL');
+    treePids = mergeProcessTreePids(pid, [...treePids, ...(forceTermination.treePids || [])]);
     confirmed = waitForProcessExitSync(treePids);
+    treePids = mergeProcessTreePids(pid, treePids);
   }
   const remainingPids = treePids.filter((processId) => isProcessAlive(processId));
   return { ...request, confirmed: confirmed && remainingPids.length === 0, remainingPids, forceTermination };
@@ -620,12 +627,15 @@ function assertSuccess(step, result) {
 
 async function terminateProcess(child, knownPids = []) {
   const request = terminatePidTree(child.pid, knownPids);
-  const treePids = request.treePids || [child.pid];
+  let treePids = mergeProcessTreePids(child.pid, request.treePids || [child.pid]);
   let confirmed = await waitForProcessExit(treePids);
+  treePids = mergeProcessTreePids(child.pid, treePids);
   let forceTermination;
   if (!confirmed && process.platform !== 'win32') {
     forceTermination = terminatePidTree(child.pid, treePids, 'SIGKILL');
+    treePids = mergeProcessTreePids(child.pid, [...treePids, ...(forceTermination.treePids || [])]);
     confirmed = await waitForProcessExit(treePids);
+    treePids = mergeProcessTreePids(child.pid, treePids);
   }
   const remainingPids = treePids.filter((pid) => isProcessAlive(pid));
   return {
@@ -644,6 +654,7 @@ function bootAndStop(command, args, env) {
       env,
       stdio: ['ignore', 'pipe', 'pipe']
     });
+    const startedAt = Date.now();
     let output = '';
     let settled = false;
     let stopRequested = false;
@@ -686,6 +697,11 @@ function bootAndStop(command, args, env) {
         return;
       }
       finish(() => {
+        const runtimeMs = Date.now() - startedAt;
+        if (runtimeMs < bootWaitMs) {
+          reject(new Error(`DSH profile boot exited before the observation window: ${JSON.stringify({ code, signal, runtimeMs, bootWaitMs, output: output.trim() })}`));
+          return;
+        }
         if (code !== 0) {
           reject(new Error(`DSH profile boot failed with exit code ${code ?? 'null'}${signal ? ` (${signal})` : ''}:\n${output.trim()}`));
           return;
@@ -701,6 +717,8 @@ function bootAndStop(command, args, env) {
           exited: true,
           exitConfirmed: true,
           observedExit,
+          startedAt,
+          runtimeMs,
           termination: { requested: false, confirmed: true, alreadyExited: true },
           exitBeforeTermination: true,
           exitBeforeTerminationConfirmation: true,
