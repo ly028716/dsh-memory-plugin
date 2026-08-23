@@ -117,7 +117,12 @@ jobs:
       - name: Publish package to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish "dist/${{ needs.verify.outputs.artifact_name }}" --access public --provenance
+        run: |
+          if npm view "@ly028716/dsh-memory-plugin@${{ needs.verify.outputs.release_version }}" version --registry https://registry.npmjs.org > /dev/null 2>&1; then
+            echo "Skipping npm publish: version ${{ needs.verify.outputs.release_version }} already exists"
+          else
+            npm publish "dist/${{ needs.verify.outputs.artifact_name }}" --access public --provenance
+          fi
 
   create-draft-release:
     needs: [verify, publish-npm]

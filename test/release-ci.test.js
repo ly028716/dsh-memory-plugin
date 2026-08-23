@@ -194,6 +194,23 @@ describe('release CI configuration', () => {
     );
   });
 
+  test('should make npm publication retry-safe for the exact release version', () => {
+    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const start = workflow.indexOf('  publish-npm:\n');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = workflow.indexOf('\n  create-draft-release:\n', start);
+    const publishNpm = workflow.slice(start, end);
+
+    expect(publishNpm).toContain(
+      'if npm view "@ly028716/dsh-memory-plugin@${{ needs.verify.outputs.release_version }}" version --registry https://registry.npmjs.org > /dev/null 2>&1; then'
+    );
+    expect(publishNpm).toContain('Skipping npm publish: version ${{ needs.verify.outputs.release_version }} already exists');
+    expect(publishNpm).toContain(
+      'npm publish "dist/${{ needs.verify.outputs.artifact_name }}" --access public --provenance'
+    );
+    expect(publishNpm).not.toContain('npm publish "dist/${{ needs.verify.outputs.artifact_name }}" --access public --provenance || true');
+  });
+
   test('should isolate downloaded package smoke checks and redact installer failures', () => {
     const installVerifier = fs.readFileSync(path.join(__dirname, '..', 'test-release-install.js'), 'utf8');
 
