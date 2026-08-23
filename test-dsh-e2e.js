@@ -10,6 +10,7 @@ const compatibilityRange = packageJson.dsh && packageJson.dsh.compatibility && p
 const required = process.env.DSH_E2E_REQUIRED === '1';
 const bootWaitMs = Number(process.env.DSH_E2E_BOOT_MS || 3000);
 const commandTimeoutMs = Number(process.env.DSH_E2E_COMMAND_MS || 120000);
+const configDumpTimeoutMs = Math.min(commandTimeoutMs, Number(process.env.DSH_E2E_CONFIG_MS || 30000));
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const npmCliPath = [
   process.env.npm_execpath,
@@ -89,26 +90,81 @@ function commandInvocation(command, args) {
   return { command, args };
 }
 
-function terminatePidTree(pid) {
+function windowsProcessSnapshot() {
+  if (process.platform !== 'win32') return [];
+  const script = '$ErrorActionPreference = "Stop"; Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Json -Compress';
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  if (result.status !== 0 || result.error) return [];
+  try {
+    const parsed = JSON.parse(result.stdout || '[]');
+    return (Array.isArray(parsed) ? parsed : [parsed])
+      .filter((entry) => entry && Number.isInteger(Number(entry.ProcessId)))
+      .map((entry) => ({
+        pid: Number(entry.ProcessId),
+        parentPid: Number(entry.ParentProcessId)
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function processTreePids(pid) {
+  if (!pid) return [];
+  if (process.platform !== 'win32') return [pid];
+  const processes = windowsProcessSnapshot();
+  if (processes.length === 0) return [pid];
+  const children = new Map();
+  for (const process of processes) {
+    const list = children.get(process.parentPid) || [];
+    list.push(process.pid);
+    children.set(process.parentPid, list);
+  }
+  const tree = [];
+  const pending = [pid];
+  const seen = new Set();
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (seen.has(current)) continue;
+    seen.add(current);
+    tree.push(current);
+    pending.push(...(children.get(current) || []));
+  }
+  return tree;
+}
+
+function terminatePidTree(pid, knownPids = []) {
   if (!pid) return { requested: false, status: null };
+  const treePids = [...new Set([...processTreePids(pid), ...knownPids])];
   if (process.platform === 'win32') {
-    const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+    const results = [spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe']
-    });
+    })];
+    for (const descendantPid of treePids.filter((candidate) => candidate !== pid)) {
+      if (isProcessAlive(descendantPid)) {
+        results.push(spawnSync('taskkill', ['/PID', String(descendantPid), '/T', '/F'], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe']
+        }));
+      }
+    }
     return {
       requested: true,
-      status: result.status,
-      error: result.error,
-      output: formatOutput(result)
+      status: results.every((result) => result.status === 0 || result.error?.code === 'ESRCH') ? 0 : results.at(-1).status,
+      error: results.find((result) => result.error)?.error,
+      output: results.map(formatOutput).filter(Boolean).join('\n'),
+      treePids
     };
   } else {
     try {
       process.kill(pid, 'SIGTERM');
-      return { requested: true, status: 0 };
+      return { requested: true, status: 0, treePids };
     } catch (error) {
-      if (error.code === 'ESRCH') return { requested: true, status: 0, alreadyExited: true };
-      return { requested: true, status: null, error };
+      if (error.code === 'ESRCH') return { requested: true, status: 0, alreadyExited: true, treePids };
+      return { requested: true, status: null, error, treePids };
     }
   }
 }
@@ -127,11 +183,12 @@ function isProcessAlive(pid) {
   }
 }
 
-function waitForProcessExit(pid, timeoutMs = 5000) {
+function waitForProcessExit(pids, timeoutMs = 5000) {
+  const processIds = Array.isArray(pids) ? pids.filter(Boolean) : [pids].filter(Boolean);
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve) => {
     const poll = () => {
-      if (!isProcessAlive(pid)) {
+      if (processIds.every((processId) => !isProcessAlive(processId))) {
         resolve(true);
         return;
       }
@@ -170,6 +227,9 @@ function runDshAsync(command, args, env, timeoutMs) {
     let stdout = '';
     let stderr = '';
     let settled = false;
+    let stopRequested = false;
+    let observedExit = null;
+    let knownPids = [child.pid];
     let timer;
 
     const finish = (result) => {
@@ -179,15 +239,38 @@ function runDshAsync(command, args, env, timeoutMs) {
       resolve({ ...result, stdout, stderr, pid: child.pid });
     };
 
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', (error) => finish({ error, status: null }));
-    child.on('exit', (status, signal) => finish({ status, signal, error: null }));
+    const capture = (stream) => (chunk) => {
+      if (stream === 'stdout') stdout += chunk.toString();
+      else stderr += chunk.toString();
+      knownPids = [...new Set([...knownPids, ...processTreePids(child.pid)])];
+    };
+    child.stdout.on('data', capture('stdout'));
+    child.stderr.on('data', capture('stderr'));
+    child.on('error', (error) => {
+      if (stopRequested) return;
+      finish({ error, status: null });
+    });
+    child.on('exit', (status, signal) => {
+      if (stopRequested) {
+        observedExit = { status, signal };
+        return;
+      }
+      finish({ status, signal, error: null });
+    });
     timer = setTimeout(() => {
-      terminatePidTree(child.pid);
-      const error = new Error(`DSH command timed out after ${timeoutMs}ms`);
-      error.code = 'ETIMEDOUT';
-      finish({ error, status: null, timedOut: true });
+      if (settled) return;
+      stopRequested = true;
+      terminateProcess(child, knownPids).then((termination) => {
+        const error = new Error(`DSH command timed out after ${timeoutMs}ms`);
+        error.code = 'ETIMEDOUT';
+        finish({
+          error,
+          status: observedExit?.status ?? child.exitCode,
+          signal: observedExit?.signal,
+          timedOut: true,
+          termination
+        });
+      }).catch((error) => finish({ error, status: null, timedOut: true }));
     }, timeoutMs);
   });
 }
@@ -452,7 +535,11 @@ async function runHostProbe({ installedRoot, dshCommand, dshHome, profileName, d
 
 function assertSuccess(step, result) {
   if (result.error) {
-    throw new Error(`${step} failed: ${result.error.code || result.error.message}`);
+    const details = formatOutput(result);
+    const termination = result.termination
+      ? `\nTermination confirmed: ${result.termination.confirmed ? 'yes' : 'no'}${result.termination.remainingPids?.length ? `; remaining PIDs: ${result.termination.remainingPids.join(', ')}` : ''}`
+      : '';
+    throw new Error(`${step} failed: ${result.error.code || result.error.message}${details ? `\n${details}` : ''}${termination}`);
   }
   if (result.status === 0) return;
 
@@ -460,11 +547,12 @@ function assertSuccess(step, result) {
   throw new Error(`${step} failed with exit code ${result.status}${details ? `:\n${details}` : ''}`);
 }
 
-async function terminateProcess(child) {
-  if (child.exitCode !== null) return { requested: false, confirmed: true, alreadyExited: true };
-  const request = terminatePidTree(child.pid);
-  const confirmed = await waitForProcessExit(child.pid);
-  return { ...request, confirmed };
+async function terminateProcess(child, knownPids = []) {
+  const request = terminatePidTree(child.pid, knownPids);
+  const treePids = request.treePids || [child.pid];
+  const confirmed = await waitForProcessExit(treePids);
+  const remainingPids = treePids.filter((pid) => isProcessAlive(pid));
+  return { ...request, confirmed: confirmed && remainingPids.length === 0, remainingPids };
 }
 
 function bootAndStop(command, args, env) {
@@ -559,31 +647,48 @@ function runDoctor(profileDir, dshHome, profileName) {
   fs.mkdirSync(fixture, { recursive: true });
   fs.writeFileSync(path.join(fixture, 'marker.txt'), 'doctor-fixture');
 
-  const result = spawnSync(process.execPath, [
-    doctorPath,
-    'doctor',
-    '--profile',
-    profileName,
-    '--dsh-home',
-    dshHome,
-    '--fix',
-    '--json'
-  ], {
-    cwd: rootDir,
-    env: process.env,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: commandTimeoutMs
-  });
-  assertSuccess('DSH profile doctor', result);
-  const output = JSON.parse(formatOutput(result));
+  const moved = [];
+  let output;
+  let passes = 0;
+  for (; passes < 8; passes += 1) {
+    const result = spawnSync(process.execPath, [
+      doctorPath,
+      'doctor',
+      '--profile',
+      profileName,
+      '--dsh-home',
+      dshHome,
+      '--fix',
+      '--json'
+    ], {
+      cwd: rootDir,
+      env: { ...process.env, DSH_HOME: dshHome },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: commandTimeoutMs
+    });
+    assertSuccess(`DSH profile doctor pass ${passes + 1}`, result);
+    try {
+      output = JSON.parse(formatOutput(result));
+    } catch (error) {
+      throw new Error(`DSH profile doctor returned invalid JSON: ${error.message}\n${formatOutput(result)}`);
+    }
+    if (!Array.isArray(output.moved) || !Array.isArray(output.remaining)) {
+      throw new Error('DSH profile doctor returned an invalid repair result');
+    }
+    moved.push(...output.moved);
+    if (output.moved.length === 0) break;
+  }
+  if (!output || output.moved.length !== 0) {
+    throw new Error('DSH profile doctor did not converge after 8 repair passes');
+  }
   if (output.remaining.length !== 0 || fs.existsSync(fixture)) {
-    throw new Error('DSH profile doctor did not remove the simulated physical fallback entry');
+    throw new Error(`DSH profile doctor left physical fallback conflicts: ${output.remaining.map((entry) => entry.relativePath || entry).join(', ') || 'fixture'}`);
   }
   if (!output.manifestPath || !fs.existsSync(output.manifestPath)) {
     throw new Error('DSH profile doctor did not create a repair manifest');
   }
-  return output;
+  return { ...output, moved, passes };
 }
 
 async function runE2E() {
@@ -643,7 +748,7 @@ async function runE2E() {
     }
     console.log(`DSH profile doctor passed: moved ${doctor.moved.length} physical fallback entries`);
 
-    const dump = await runDshAsync(dsh.command, ['--profile', profileName, '--dump-config'], env, commandTimeoutMs);
+    const dump = await runDshAsync(dsh.command, ['--profile', profileName, '--dump-config'], env, configDumpTimeoutMs);
     assertSuccess('DSH config dump', dump);
     const dumpOutput = formatOutput(dump);
     if (!dumpOutput.includes(packageName) && !dumpOutput.includes('dsh-memory-plugin')) {
