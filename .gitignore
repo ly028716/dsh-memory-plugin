@@ -29,6 +29,11 @@ npm-debug.log*
 # Coverage
 coverage/
 
+# Playwright artifacts
+playwright-report/
+test-results/
+test-artifacts/
+
 # Build output
 dist/
 build/

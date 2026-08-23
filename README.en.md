@@ -322,6 +322,14 @@ dsh-memory-plugin/
 # Run tests
 npm test
 
+# Install Chromium (first run or after a browser version update)
+npx playwright install chromium
+
+# Run the real Chromium browser E2E
+npm run test:browser-e2e
+
+# On failure, inspect screenshots, traces, and reports in playwright-report/ and test-results/
+
 # Run the real DSH clean-profile E2E (skips only when dsh is unavailable; incompatible or unavailable host probe fails)
 npm run test:dsh-e2e
 

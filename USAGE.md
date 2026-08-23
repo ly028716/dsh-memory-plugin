@@ -20,6 +20,15 @@ npm run test:dsh-e2e
 
 未安装 DSH CLI 时该命令安全跳过；如果 DSH 已安装但版本不兼容，或真实 host probe 报 `host probe unavailable`，测试会失败而不会静默跳过。
 
+真实浏览器查看器 E2E 使用 Chromium，不依赖 DSH CLI：
+
+```bash
+npx playwright install chromium
+npm run test:browser-e2e
+```
+
+该测试覆盖查看器从 HTTP 源文件加载数据、清除 localStorage 缓存后重新加载，以及导出 JSON 下载。失败时检查 `playwright-report/` 和 `test-results/`。
+
 ## 基本用法
 
 ### 1. 在 DSH 配置中使用

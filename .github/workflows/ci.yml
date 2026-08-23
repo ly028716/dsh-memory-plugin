@@ -47,6 +47,22 @@ jobs:
       - name: Package verification
         run: npm run test:package
 
+      - name: Install Chromium for browser E2E
+        run: npx playwright install --with-deps chromium
+
+      - name: Real browser E2E
+        run: npm run test:browser-e2e
+
+      - name: Upload browser E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-${{ matrix.node-version }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
       - name: Pinned commit installation
         run: npm run test:pinned-commit
 

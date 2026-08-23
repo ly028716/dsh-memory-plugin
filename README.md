@@ -321,6 +321,14 @@ dsh-memory-plugin/
 # 运行测试
 npm test
 
+# 安装 Chromium（首次运行或浏览器版本更新时执行）
+npx playwright install chromium
+
+# 运行真实 Chromium 浏览器 E2E
+npm run test:browser-e2e
+
+# 失败时查看 playwright-report/ 和 test-results/ 中的截图、trace 与报告
+
 # 运行真实 DSH clean-profile E2E（未安装 dsh 时安全跳过；已安装但不兼容或 host probe 不可用会失败）
 npm run test:dsh-e2e
 

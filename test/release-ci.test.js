@@ -35,6 +35,15 @@ describe('release CI configuration', () => {
     expect(packageJson.engines.node).toBe('>=20');
   });
 
+  test('declares the real browser E2E command and Playwright config', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+
+    expect(packageJson.scripts['test:browser-e2e'])
+      .toBe('playwright test --config=playwright.config.js');
+    expect(packageJson.devDependencies['@playwright/test']).toBeDefined();
+    expect(fs.existsSync(path.join(__dirname, '..', 'playwright.config.js'))).toBe(true);
+  });
+
   test('should verify and publish package artifacts on version tags', () => {
     const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
 
@@ -43,6 +52,19 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('npm run test:pinned-commit');
     expect(workflow).toContain('npm pack');
     expect(workflow).toContain('upload-artifact');
+  });
+
+  test('should install Chromium and run real browser E2E in CI and release workflows', () => {
+    const rootDir = path.join(__dirname, '..');
+    const ciWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'ci.yml'), 'utf8');
+    const releaseWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'release.yml'), 'utf8');
+
+    for (const workflow of [ciWorkflow, releaseWorkflow]) {
+      expect(workflow).toContain('npx playwright install --with-deps chromium');
+      expect(workflow).toContain('npm run test:browser-e2e');
+      expect(workflow).toContain('playwright-report/');
+      expect(workflow).toContain('test-results/');
+    }
   });
 
   test('should use the scoped package in DSH installation guidance', () => {

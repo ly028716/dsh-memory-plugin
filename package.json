@@ -58,9 +58,16 @@
     "test:package": "node test-package.js",
     "test:pinned-commit": "node test-pinned-commit.js",
     "test:dsh-e2e": "node test-dsh-e2e.js",
-    "check": "node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check migrations.js && node --check data-lifecycle.js && node --check memory-manager.js && node --check privacy.js",
+    "test:browser-e2e": "playwright test --config=playwright.config.js",
+    "check": "node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check migrations.js && node --check data-lifecycle.js && node --check memory-manager.js && node --check privacy.js && node --check playwright.config.js && node --check test/browser-server.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/test/e2e/"
+    ]
   },
   "keywords": [
     "dsh",
@@ -77,6 +84,7 @@
   "author": "ly028716",
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "jest": "^29.7.0"
   },
   "peerDependencies": {
