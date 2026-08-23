@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -21,6 +22,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: npm ci
@@ -64,3 +66,22 @@ jobs:
         with:
           generate_release_notes: true
           files: dist/*.tgz
+
+      - name: Publish package to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish dist/*.tgz --access public --provenance
+
+      - name: Download GitHub Release artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-artifact"
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern "*.tgz" --dir "$RUNNER_TEMP/release-artifact"
+
+      - name: Verify published npm and GitHub artifact installations
+        run: |
+          release_version="${GITHUB_REF_NAME#v}"
+          github_tarball="$(find "$RUNNER_TEMP/release-artifact" -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -n "$github_tarball"
+          npm run test:release-install -- --version "$release_version" --github-tarball "$github_tarball"
