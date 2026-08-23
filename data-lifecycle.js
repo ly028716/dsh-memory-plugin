@@ -11,6 +11,13 @@ const { INPUT_LIMITS, assertDataWithinLimits } = require('./limits');
 const BACKUP_NAME_PATTERN = /^memory-[A-Za-z0-9_-]+\.json$/;
 const REASON_PATTERN = /^[A-Za-z0-9_-]+$/;
 
+function assertSerializedSize(content, label) {
+  const bytes = Buffer.byteLength(content, 'utf8');
+  if (bytes > INPUT_LIMITS.maxMemoryFileBytes) {
+    throw new Error(`${label} must not exceed ${INPUT_LIMITS.maxMemoryFileBytes} bytes`);
+  }
+}
+
 class DataLifecycleManager {
   constructor(storage, options = {}) {
     if (!storage || typeof storage.exportData !== 'function' || typeof storage.importData !== 'function') {
@@ -66,9 +73,10 @@ class DataLifecycleManager {
     const temporary = `${destination}.${process.pid}.${Date.now()}.tmp`;
     const content = raw ? data : JSON.stringify(data, null, 2);
     if (raw) {
-      assertDataWithinLimits(Buffer.byteLength(content, 'utf8'), 'backup file', INPUT_LIMITS.maxMemoryFileBytes);
+      assertSerializedSize(content, 'backup file');
     } else {
       assertDataWithinLimits(data, 'backup data', INPUT_LIMITS.maxMemoryFileBytes);
+      assertSerializedSize(content, 'backup file');
     }
 
     try {
@@ -151,7 +159,7 @@ class DataLifecycleManager {
     if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('Invalid backup file');
 
     const content = await fs.readFile(filePath, 'utf8');
-    assertDataWithinLimits(Buffer.byteLength(content, 'utf8'), 'backup file', INPUT_LIMITS.maxMemoryFileBytes);
+    assertSerializedSize(content, 'backup file');
     let data;
     try {
       data = JSON.parse(content);

@@ -41,6 +41,15 @@ describe('DataLifecycleManager', () => {
     await expect(lifecycle.restoreBackup('../memory.json')).rejects.toThrow('Invalid backup name');
   });
 
+  test('rejects oversized backup files before parsing or restoring', async () => {
+    await fs.mkdir(backupDir, { recursive: true });
+    const oversized = JSON.stringify('x'.repeat(5 * 1024 * 1024));
+    await fs.writeFile(path.join(backupDir, 'memory-large-manual.json'), oversized);
+
+    await expect(lifecycle.restoreBackup('memory-large-manual.json'))
+      .rejects.toThrow('backup file must not exceed');
+  });
+
   test('creates a safety backup before restoring a valid snapshot', async () => {
     const backup = await lifecycle.backup('manual');
     storage.set('userPreferences.defaultModel', 'changed');
