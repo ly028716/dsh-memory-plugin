@@ -75,6 +75,9 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('gh release download');
     expect(workflow).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
     expect(workflow).toContain('release_version="${GITHUB_REF_NAME#v}"');
+    expect(workflow).toContain(
+      'npm run test:release-install -- --version "$release_version" --github-tarball "$github_tarball"'
+    );
     expect(workflow).toContain('--version "$release_version"');
     expect(workflow).toContain('--github-tarball "$github_tarball"');
     expect(workflow).toContain('test -n "$github_tarball"');
