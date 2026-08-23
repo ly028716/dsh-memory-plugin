@@ -11,6 +11,11 @@ const required = process.env.DSH_E2E_REQUIRED === '1';
 const bootWaitMs = Number(process.env.DSH_E2E_BOOT_MS || 3000);
 const commandTimeoutMs = Number(process.env.DSH_E2E_COMMAND_MS || 120000);
 const configDumpTimeoutMs = Math.min(commandTimeoutMs, Number(process.env.DSH_E2E_CONFIG_MS || 30000));
+const profileTestPatch = `- id: dsh-memory-plugin
+  name: '@ly028716/dsh-memory-plugin'
+  config:
+    allowClearMemory: false
+`;
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const npmCliPath = [
   process.env.npm_execpath,
@@ -676,6 +681,13 @@ function findInstalledPackage(profileDir) {
   return packagePath;
 }
 
+function assertProfileTestPatch(profileDir) {
+  const patchPath = path.join(profileDir, 'cordis.patch.yml');
+  if (!fs.existsSync(patchPath) || fs.readFileSync(patchPath, 'utf8') !== profileTestPatch) {
+    throw new Error('DSH E2E profile patch does not disable allowClearMemory for the host probe');
+  }
+}
+
 function runDoctor(profileDir, dshHome, profileName) {
   const installedRoot = findInstalledPackage(profileDir);
   const doctorPath = path.join(installedRoot, 'bin', 'dsh-memory-plugin.js');
@@ -810,6 +822,7 @@ async function runE2E() {
       throw new Error(`Clean profile does not declare ${packageName}`);
     }
 
+    assertProfileTestPatch(profileDir);
     const doctor = runDoctor(profileDir, dshHome, profileName);
     if (!Number.isInteger(doctor.passes) || doctor.passes < 1) {
       throw new Error('DSH profile doctor did not report a repair pass count');
