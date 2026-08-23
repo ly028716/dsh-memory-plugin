@@ -520,6 +520,12 @@ async function runE2E() {
       dshCommand: dsh.command,
       dshVersion: formatVersion(dsh.version)
     });
+    if (hostProbe.source !== 'profile-boot') {
+      throw new Error('DSH host probe must use the real profile boot API');
+    }
+    if (hostProbe.packageVersion !== formatVersion(dsh.version)) {
+      throw new Error(`DSH host probe package version ${hostProbe.packageVersion || '(missing)'} does not match CLI ${formatVersion(dsh.version)}`);
+    }
     if (!hostProbe.promptText.includes('Memory context (user-controlled local memory):')) {
       throw new Error('DSH host prompt probe did not expose the memory context');
     }
@@ -539,6 +545,9 @@ async function runE2E() {
 
     const boot = await bootAndStop(dsh.command, ['--profile', profileName], env);
     if (boot.timedOut) {
+      if (!boot.terminationConfirmed) {
+        throw new Error('DSH profile boot probe did not confirm process-tree termination after the observation window');
+      }
       console.log(`DSH profile boot probe remained running for ${bootWaitMs}ms; process tree was terminated after startup observation`);
     }
     console.log(`DSH clean-profile E2E passed: ${packageName} (${profileName}, DSH ${formatVersion(dsh.version)})`);
