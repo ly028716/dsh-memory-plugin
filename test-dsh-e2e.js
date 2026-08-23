@@ -242,7 +242,6 @@ function runDshAsync(command, args, env, timeoutMs) {
     const capture = (stream) => (chunk) => {
       if (stream === 'stdout') stdout += chunk.toString();
       else stderr += chunk.toString();
-      knownPids = [...new Set([...knownPids, ...processTreePids(child.pid)])];
     };
     child.stdout.on('data', capture('stdout'));
     child.stderr.on('data', capture('stderr'));
