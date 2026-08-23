@@ -12,13 +12,14 @@ jobs:
       contents: read
     outputs:
       artifact_name: ${{ steps.package.outputs.artifact_name }}
+      release_version: ${{ steps.package.outputs.release_version }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           cache: npm
@@ -42,7 +43,7 @@ jobs:
 
       - name: Upload browser E2E report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: browser-e2e-release
           path: |
@@ -54,13 +55,40 @@ jobs:
         id: package
         run: |
           mkdir -p dist
+          release_version="${GITHUB_REF_NAME#v}"
+          node - "$release_version" <<'NODE'
+          const releaseVersion = process.argv[2];
+          const semverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+          if (!semverPattern.test(releaseVersion)) {
+            console.error(`Invalid release tag version: ${releaseVersion}`);
+            process.exit(1);
+          }
+          NODE
           npm pack --json --pack-destination dist > dist/pack-result.json
-          artifact_name="$(node -e "const fs = require('fs'); const result = JSON.parse(fs.readFileSync('dist/pack-result.json', 'utf8')); const artifactName = result[0].filename; if (!artifactName) throw new Error('npm pack did not return a filename'); console.log(artifactName);")"
+          artifact_name="$(node - "$release_version" <<'NODE'
+          const fs = require('fs');
+          const releaseVersion = process.argv[2];
+          const result = JSON.parse(fs.readFileSync('dist/pack-result.json', 'utf8'));
+          if (!Array.isArray(result) || result.length !== 1) {
+            throw new Error('npm pack must return exactly one package');
+          }
+          const pack = result[0];
+          const artifactName = result[0].filename;
+          if (!pack || typeof artifactName !== 'string' || artifactName.length === 0) {
+            throw new Error('npm pack did not return a filename');
+          }
+          if (pack.version !== releaseVersion) {
+            throw new Error(`Packed version ${pack.version} does not match tag version ${releaseVersion}`);
+          }
+          console.log(artifactName);
+          NODE
+          )"
           test -n "$artifact_name"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: dsh-memory-plugin-${{ github.ref_name }}
           path: dist/${{ steps.package.outputs.artifact_name }}
@@ -75,13 +103,13 @@ jobs:
 
     steps:
       - name: Download package artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: dsh-memory-plugin-${{ github.ref_name }}
           path: dist
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
@@ -99,7 +127,7 @@ jobs:
 
     steps:
       - name: Download package artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: dsh-memory-plugin-${{ github.ref_name }}
           path: dist
@@ -107,7 +135,16 @@ jobs:
       - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" "dist/${{ needs.verify.outputs.artifact_name }}" --repo "$GITHUB_REPOSITORY" --draft --generate-notes
+        run: |
+          if is_draft="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null)"; then
+            if [[ "$is_draft" != "true" ]]; then
+              echo "Refusing to overwrite published release $GITHUB_REF_NAME" >&2
+              exit 1
+            fi
+            gh release upload "$GITHUB_REF_NAME" "dist/${{ needs.verify.outputs.artifact_name }}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "dist/${{ needs.verify.outputs.artifact_name }}" --repo "$GITHUB_REPOSITORY" --draft --generate-notes
+          fi
 
   verify-release-install:
     needs: [verify, create-draft-release]
@@ -117,10 +154,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
           cache: npm
@@ -138,7 +175,7 @@ jobs:
 
       - name: Verify published npm and GitHub artifact installations
         run: |
-          release_version="${GITHUB_REF_NAME#v}"
+          release_version="${{ needs.verify.outputs.release_version }}"
           github_tarball="$RUNNER_TEMP/release-artifact/${{ needs.verify.outputs.artifact_name }}"
           test -n "$github_tarball"
           test -f "$github_tarball"

@@ -147,6 +147,53 @@ describe('release CI configuration', () => {
     expect(verificationStep).not.toContain('GH_TOKEN:');
   });
 
+  test('should preflight the release tag, pin actions, and safely resume draft releases', () => {
+    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const jobBlock = (name) => {
+      const start = workflow.indexOf(`  ${name}:\n`);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const remainder = workflow.slice(start + 1);
+      const next = remainder.search(/\n  [A-Za-z0-9_-]+:\n/);
+      return workflow.slice(start, next === -1 ? undefined : start + 1 + next);
+    };
+
+    const verify = jobBlock('verify');
+    const createDraftRelease = jobBlock('create-draft-release');
+    const verifyReleaseInstall = jobBlock('verify-release-install');
+
+    expect(verify).toContain('release_version="${GITHUB_REF_NAME#v}"');
+    expect(verify).toContain('const semverPattern =');
+    expect(verify).toContain('Invalid release tag version');
+    expect(verify).toContain('if (!Array.isArray(result) || result.length !== 1)');
+    expect(verify).toContain('if (pack.version !== releaseVersion)');
+    expect(verify).toContain('echo "release_version=$release_version" >> "$GITHUB_OUTPUT"');
+    expect(workflow).toContain('release_version: ${{ steps.package.outputs.release_version }}');
+    expect(verifyReleaseInstall).toContain('release_version="${{ needs.verify.outputs.release_version }}"');
+    expect(verifyReleaseInstall).not.toContain('release_version="${GITHUB_REF_NAME#v}"');
+
+    for (const action of [
+      'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
+      'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
+      'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+      'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093'
+    ]) {
+      expect(workflow).toContain(action);
+    }
+    expect(workflow).not.toMatch(/uses:\s+[^\n]+@v\d/);
+
+    expect(createDraftRelease).toContain(
+      'gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft'
+    );
+    expect(createDraftRelease).toContain('if [[ "$is_draft" != "true" ]]; then');
+    expect(createDraftRelease).toContain('Refusing to overwrite published release');
+    expect(createDraftRelease).toContain(
+      'gh release upload "$GITHUB_REF_NAME" "dist/${{ needs.verify.outputs.artifact_name }}" --repo "$GITHUB_REPOSITORY" --clobber'
+    );
+    expect(createDraftRelease).toContain(
+      'gh release create "$GITHUB_REF_NAME" "dist/${{ needs.verify.outputs.artifact_name }}" --repo "$GITHUB_REPOSITORY" --draft --generate-notes'
+    );
+  });
+
   test('should isolate downloaded package smoke checks and redact installer failures', () => {
     const installVerifier = fs.readFileSync(path.join(__dirname, '..', 'test-release-install.js'), 'utf8');
 
