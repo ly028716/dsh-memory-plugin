@@ -54,6 +54,10 @@ try {
   runNpm(['install', '--offline', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
 
   const installedRoot = path.join(packageDir, 'node_modules', packageJson.name);
+  const clientSource = fs.readFileSync(path.join(installedRoot, 'client.js'), 'utf8');
+  if (!clientSource.includes('__ModuleLoader__.load') || !clientSource.includes('@ly028716/dsh-memory-plugin')) {
+    throw new Error('Installed client entry is missing the DSH ModuleLoader handoff');
+  }
   const plugin = require(installedRoot);
   if (plugin.name !== 'memory' || typeof plugin.apply !== 'function') {
     throw new Error('Installed package does not expose the DSH plugin API');
