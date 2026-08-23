@@ -57,11 +57,23 @@ describe('release CI configuration', () => {
     expect(installVerifier).toContain('npm_config_registry');
     expect(installVerifier).toContain('doctor');
     expect(installVerifier).toContain('viewer.html');
+    expect(installVerifier).toContain('require(installedRoot)');
+    expect(installVerifier).toMatch(
+      /(?:assert\.(?:strictEqual|equal)\(\s*installedPackage\.version\s*,\s*expectedVersion|installedPackage\.version\s*!==?\s*expectedVersion)/
+    );
+    expect(installVerifier).toContain('installedPackage.dsh.bundle.patch');
+    expect(installVerifier).toContain('premium-viewer.html');
+    expect(installVerifier).toContain('open-viewer.cmd');
+    expect(installVerifier).toContain('installFromNpm');
+    expect(installVerifier).toContain('installFromTarball');
     expect(workflow).toContain('npm publish dist/*.tgz --access public --provenance');
     expect(workflow).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
     expect(workflow).toContain('gh release download');
     expect(workflow).toContain('GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}');
-    expect(workflow).toContain('npm run test:release-install');
+    expect(workflow).toContain('release_version="${GITHUB_REF_NAME#v}"');
+    expect(workflow).toContain(
+      'npm run test:release-install -- --version "$release_version" --github-tarball'
+    );
   });
 
   test('should verify and publish package artifacts on version tags', () => {
