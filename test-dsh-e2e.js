@@ -202,7 +202,30 @@ function waitForProcessExit(pids, timeoutMs = 5000) {
   });
 }
 
-function runDsh(command, args, env) {
+function sleepSync(timeoutMs) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, timeoutMs);
+}
+
+function waitForProcessExitSync(pids, timeoutMs = 5000) {
+  const processIds = Array.isArray(pids) ? pids.filter(Boolean) : [pids].filter(Boolean);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (processIds.every((pid) => !isProcessAlive(pid))) return true;
+    sleepSync(50);
+  }
+  return processIds.every((pid) => !isProcessAlive(pid));
+}
+
+function terminateProcessSync(pid) {
+  if (!pid) return { requested: false, confirmed: false, remainingPids: [] };
+  const request = terminatePidTree(pid);
+  const treePids = request.treePids || [pid];
+  const confirmed = waitForProcessExitSync(treePids);
+  const remainingPids = treePids.filter((processId) => isProcessAlive(processId));
+  return { ...request, confirmed: confirmed && remainingPids.length === 0, remainingPids };
+}
+
+function runDsh(command, args, env, timeoutMs = commandTimeoutMs) {
   const invocation = commandInvocation(command, args);
   const result = spawnSync(invocation.command, invocation.args, {
     cwd: rootDir,
@@ -210,9 +233,11 @@ function runDsh(command, args, env) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 10 * 1024 * 1024,
-    timeout: commandTimeoutMs
+    timeout: timeoutMs
   });
-  if (result.error && result.error.code === 'ETIMEDOUT') terminatePidTree(result.pid);
+  if (result.error && result.error.code === 'ETIMEDOUT') {
+    result.termination = terminateProcessSync(result.pid);
+  }
   return result;
 }
 
@@ -749,7 +774,7 @@ async function runE2E() {
     }
     console.log(`DSH profile doctor passed: moved ${doctor.moved.length} physical fallback entries`);
 
-    const dump = await runDshAsync(dsh.command, ['--profile', profileName, '--dump-config'], env, configDumpTimeoutMs);
+    const dump = runDsh(dsh.command, ['--profile', profileName, '--dump-config'], env, configDumpTimeoutMs);
     assertSuccess('DSH config dump', dump);
     const dumpOutput = formatOutput(dump);
     if (!dumpOutput.includes(packageName) && !dumpOutput.includes('dsh-memory-plugin')) {
