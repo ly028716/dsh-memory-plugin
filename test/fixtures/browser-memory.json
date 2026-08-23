@@ -1,0 +1,44 @@
+{
+  "version": "1.1.0",
+  "lastUpdated": "2026-01-07T00:00:00.000Z",
+  "userPreferences": {
+    "preferredAgents": ["browser-agent"],
+    "defaultModel": "browser-e2e-model",
+    "language": "zh-CN",
+    "workingDirectory": null,
+    "customSettings": {}
+  },
+  "inputHabits": {
+    "commonCommands": [],
+    "frequentPatterns": [],
+    "preferredTools": []
+  },
+  "projectContext": {
+    "activeProjects": [
+      {
+        "name": "browser-fixture-project",
+        "path": "/tmp/browser-fixture-project",
+        "tags": ["e2e"],
+        "lastAccessed": "2026-01-07T00:00:00.000Z"
+      }
+    ]
+  },
+  "sessionHistory": {
+    "recentTopics": [
+      {
+        "content": "browser e2e topic",
+        "timestamp": "2026-01-07T00:00:00.000Z"
+      }
+    ],
+    "frequentTasks": [],
+    "toolUsageStats": {
+      "browser-tool": 4
+    }
+  },
+  "metadata": {
+    "schemaVersion": 2,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "totalSessions": 7,
+    "lastSessionDate": "2026-01-07T00:00:00.000Z"
+  }
+}
