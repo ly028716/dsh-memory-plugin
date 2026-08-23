@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const packageJson = require('../package.json');
 
@@ -78,6 +79,77 @@ test('client module can be required without optional Web runtime packages', () =
     expect(typeof client.apply).toBe('function');
     expect(typeof client.MEMORY_NAMESPACE).toBe('string');
   });
+});
+
+test('browser script hands a lazy CJS factory to DSH ModuleLoader', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'client.js'), 'utf8');
+  let handoff;
+  let requireCalls = 0;
+  const browserWindow = {
+    __ModuleLoader__: {
+      load(payload) {
+        handoff = payload;
+      }
+    }
+  };
+
+  vm.runInNewContext(source, {
+    window: browserWindow,
+    require() {
+      requireCalls += 1;
+      throw new Error('browser script must not require before factory execution');
+    },
+    console
+  });
+
+  expect(requireCalls).toBe(0);
+  expect(handoff).toEqual(expect.objectContaining({
+    id: '@ly028716/dsh-memory-plugin',
+    factory: expect.any(Function)
+  }));
+
+  const fakeRequire = jest.fn((id) => {
+    if (id === 'react') {
+      return {
+        createElement: (type, props, ...children) => ({ type, props: props || {}, children })
+      };
+    }
+    throw new Error(`unexpected browser dependency: ${id}`);
+  });
+  const client = handoff.factory(fakeRequire);
+  expect(client.inject).toEqual(['slots', 'settingsScope']);
+  expect(typeof client.apply).toBe('function');
+
+  const binding = {
+    values: {
+      trackToolCalls: false,
+      trackPreferences: true,
+      trackProjectContext: false,
+      trackSessionHistory: true,
+      enableRecommendations: true,
+      allowClearMemory: false
+    },
+    update: jest.fn()
+  };
+  const slots = {
+    inject: jest.fn((_name, callback) => callback()),
+    register: jest.fn(() => jest.fn())
+  };
+  const ctx = {
+    get: jest.fn((name) => ({
+      slots,
+      settingsScope: { bind: jest.fn(() => binding) }
+    }[name])),
+    effect: jest.fn((factory) => factory())
+  };
+
+  client.apply(ctx);
+  expect(slots.inject).toHaveBeenCalledWith('settings.plugin.item', expect.any(Function));
+  expect(slots.register).toHaveBeenCalledWith(expect.objectContaining({
+    key: 'dsh-memory',
+    locale: 'dsh-memory',
+    inject: expect.any(Function)
+  }), expect.any(Function));
 });
 
 test('apply safely returns when slots capability is missing', () => {
@@ -232,4 +304,6 @@ test('package verification installs with peers omitted', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'test-package.js'), 'utf8');
   expect(source).toMatch(/runNpm\(\['install',[^\]]*'--omit=peer'/);
   expect(source).toMatch(/runNpm\(\['install',[^\]]*'--offline'/);
+  expect(source).toMatch(/__ModuleLoader__\.load/);
+  expect(source).toContain('@ly028716/dsh-memory-plugin');
 });
