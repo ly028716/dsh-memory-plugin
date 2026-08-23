@@ -876,6 +876,9 @@ async function runE2E() {
     console.log(`DSH host prompt/tool probe passed: memory context + memory tool visible (DSH ${hostProbe.dshVersion})`);
 
     const boot = await bootAndStop(dsh.command, ['--profile', profileName], env);
+    if (!boot.termination || !Object.prototype.hasOwnProperty.call(boot, 'observedExit') || !Object.prototype.hasOwnProperty.call(boot, 'exitBeforeTermination')) {
+      throw new Error('DSH profile boot probe did not report lifecycle termination metadata');
+    }
     if (boot.timedOut) {
       if (!boot.terminationConfirmed) {
         throw new Error('DSH profile boot probe did not confirm process-tree termination after the observation window');
