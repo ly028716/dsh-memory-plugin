@@ -39,6 +39,8 @@
     "memory-manager.js",
     "privacy.js",
     "storage.js",
+    "migrations.js",
+    "data-lifecycle.js",
     "README.md",
     "README.en.md",
     "USAGE.md",

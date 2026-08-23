@@ -77,4 +77,22 @@ describe('Config Validation', () => {
     expect(config.autoSaveInterval).toBe(10000);
     expect(config.patternRecognitionThreshold).toBe(5);
   });
+
+  test('provides local backup and retention defaults', () => {
+    const config = validateConfig();
+
+    expect(config.backupDir).toBeNull();
+    expect(config.backupOnInitialize).toBe(true);
+    expect(config.backupRetentionDays).toBe(30);
+    expect(config.backupRetentionCount).toBe(10);
+  });
+
+  test('rejects invalid backup retention settings', () => {
+    expect(() => validateConfig({ backupRetentionDays: 0 }))
+      .toThrow('backupRetentionDays must be a positive integer');
+    expect(() => validateConfig({ backupRetentionCount: 10001 }))
+      .toThrow('backupRetentionCount must not exceed 10000');
+    expect(() => validateConfig({ backupOnInitialize: 'yes' }))
+      .toThrow('backupOnInitialize must be a boolean value');
+  });
 });

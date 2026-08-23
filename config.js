@@ -6,6 +6,10 @@
 const DEFAULT_CONFIG = {
   // Storage settings
   storagePath: '.dsh-memory.json',
+  backupDir: null,
+  backupOnInitialize: true,
+  backupRetentionDays: 30,
+  backupRetentionCount: 10,
   maxHistoryItems: 100,
   autoSaveInterval: 5000, // milliseconds
   
@@ -39,6 +43,10 @@ function validateConfig(userConfig = {}) {
   // Validate storagePath
   if (typeof config.storagePath !== 'string' || config.storagePath.trim() === '' || config.storagePath.includes('\0')) {
     throw new Error('storagePath must be a non-empty string');
+  }
+
+  if (config.backupDir !== null && (typeof config.backupDir !== 'string' || config.backupDir.trim() === '' || config.backupDir.includes('\0'))) {
+    throw new Error('backupDir must be null or a non-empty string');
   }
   
   // Validate maxHistoryItems
@@ -75,6 +83,7 @@ function validateConfig(userConfig = {}) {
     'trackPreferences', 
     'trackProjectContext',
     'trackSessionHistory',
+    'backupOnInitialize',
     'encryptSensitiveData',
     'allowClearMemory',
     'enableRecommendations'
@@ -83,6 +92,18 @@ function validateConfig(userConfig = {}) {
   for (const flag of booleanFlags) {
     if (config[flag] !== undefined && typeof config[flag] !== 'boolean') {
       throw new Error(`${flag} must be a boolean value`);
+    }
+  }
+
+  for (const setting of ['backupRetentionDays', 'backupRetentionCount']) {
+    if (typeof config[setting] !== 'number' || !Number.isFinite(config[setting])) {
+      throw new Error(`${setting} must be a positive integer`);
+    }
+    if (!Number.isSafeInteger(config[setting]) || config[setting] <= 0) {
+      throw new Error(`${setting} must be a positive integer`);
+    }
+    if (config[setting] > 10000) {
+      throw new Error(`${setting} must not exceed 10000`);
     }
   }
   
