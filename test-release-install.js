@@ -117,17 +117,19 @@ function runNpm(tempDir, registry, args, cwd) {
   }
 }
 
-function installSource(tempDir, registry, consumerDir, source) {
-  runNpm(tempDir, registry, [
+function installSource(tempDir, registry, consumerDir, source, offline = false) {
+  const args = [
     'install',
     '--no-save',
     '--package-lock=false',
     '--ignore-scripts',
     '--omit=peer',
     '--no-audit',
-    '--no-fund',
-    source
-  ], consumerDir);
+    '--no-fund'
+  ];
+  if (offline) args.push('--offline');
+  args.push(source);
+  runNpm(tempDir, registry, args, consumerDir);
 }
 
 function installFromNpm(tempDir, options, consumerDir) {
@@ -138,7 +140,7 @@ function installFromNpm(tempDir, options, consumerDir) {
 
   for (let attempt = 0; attempt <= options.retries; attempt += 1) {
     try {
-      installSource(tempDir, options.registry, consumerDir, source);
+      installSource(tempDir, options.registry, consumerDir, source, Boolean(options.npmTarball));
       return;
     } catch (error) {
       lastError = error;
@@ -155,7 +157,7 @@ function installFromNpm(tempDir, options, consumerDir) {
 function installFromTarball(tempDir, options, consumerDir) {
   const tarball = resolveTarball(options.githubTarball, 'GitHub channel');
   try {
-    installSource(tempDir, options.registry, consumerDir, tarball);
+    installSource(tempDir, options.registry, consumerDir, tarball, true);
   } catch (error) {
     throw new Error(`GitHub channel installation failed:\n${error.message}`);
   }
