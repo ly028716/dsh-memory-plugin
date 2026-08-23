@@ -373,6 +373,27 @@ async function runE2E() {
       throw new Error('DSH config dump does not contain the memory plugin bundle');
     }
 
+    const hostProbe = await runHostProbe({
+      installedRoot: installed,
+      dshVersion: formatVersion(dsh.version)
+    });
+    if (!hostProbe.promptText.includes('Memory context (user-controlled local memory):')) {
+      throw new Error('DSH host prompt probe did not expose the memory context');
+    }
+    if (!hostProbe.promptText.includes('preferred model:')) {
+      throw new Error('DSH host prompt probe did not include the written preference');
+    }
+    if (hostProbe.promptText.includes('sk-')) {
+      throw new Error('DSH host prompt probe exposed an unredacted secret');
+    }
+    if (!hostProbe.toolNames.includes('memory')) {
+      throw new Error('DSH host tool probe did not expose the memory tool');
+    }
+    if (!hostProbe.toolActions.includes('search') || !hostProbe.toolActions.includes('remember') || !hostProbe.toolActions.includes('forget')) {
+      throw new Error('DSH host tool probe did not expose search/remember/forget actions');
+    }
+    console.log(`DSH host prompt/tool probe passed: memory context + memory tool visible (DSH ${hostProbe.dshVersion})`);
+
     const boot = await bootAndStop(dsh.command, ['--profile', profileName], env);
     if (boot.timedOut) {
       console.log(`DSH profile boot probe remained running for ${bootWaitMs}ms; process tree was terminated after startup observation`);
