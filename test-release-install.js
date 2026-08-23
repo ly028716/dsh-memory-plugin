@@ -96,6 +96,13 @@ function summarizeNpmError(error) {
     .join('\n');
 }
 
+function sanitizeVerificationEnvironment() {
+  const sensitiveName = /(TOKEN|SECRET|PASSWORD|CREDENTIAL|_KEY$)/i;
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !sensitiveName.test(name))
+  );
+}
+
 function runNpm(tempDir, registry, args, cwd) {
   const command = npmCliPath ? process.execPath : npmCommand;
   const commandArgs = npmCliPath ? [npmCliPath, ...args] : args;
@@ -171,19 +178,27 @@ function verifyInstalledPackage(channel, consumerDir, version) {
 
   if (!fs.existsSync(installedRoot)) fail(`installed package is missing: ${installedRoot}`);
 
-  let plugin;
+  const verificationEnv = sanitizeVerificationEnvironment();
   try {
-    const plugin = require(installedRoot);
-    if (plugin.name !== 'memory' || typeof plugin.apply !== 'function') {
-      fail('package does not expose the DSH plugin API');
-    }
+    const entrySmokeScript = [
+      'const installedRoot = process.argv[1];',
+      'const plugin = require(installedRoot);',
+      "if (plugin.name !== 'memory' || typeof plugin.apply !== 'function') {",
+      "  throw new Error('package does not expose the DSH plugin API');",
+      '}'
+    ].join('\n');
+    execFileSync(process.execPath, ['-e', entrySmokeScript, installedRoot], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: verificationEnv
+    });
   } catch (error) {
     fail(`package could not be loaded: ${error.message}`);
   }
 
   let installedPackage;
   try {
-    installedPackage = require(path.join(installedRoot, 'package.json'));
+    installedPackage = JSON.parse(fs.readFileSync(path.join(installedRoot, 'package.json'), 'utf8'));
   } catch (error) {
     fail(`package.json could not be loaded: ${error.message}`);
   }
@@ -208,7 +223,11 @@ function verifyInstalledPackage(channel, consumerDir, version) {
     const doctorHelp = execFileSync(
       process.execPath,
       [path.join(installedRoot, 'bin', 'dsh-memory-plugin.js'), 'doctor', '--help'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: verificationEnv
+      }
     );
     if (!doctorHelp.includes('dsh-memory-plugin doctor')) {
       fail('doctor --help does not expose its expected help text');
