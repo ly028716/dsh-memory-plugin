@@ -7,6 +7,7 @@ const { createVerificationEnvironment, redactSecrets } = require(verifierPath);
 const sentinelEnvironment = {
   PATH: 'path-sentinel',
   SystemRoot: 'systemroot-sentinel',
+  TOKEN: 'abc',
   NODE_AUTH_TOKEN: 'node-auth-sentinel',
   NPM_TOKEN: 'npm-token-sentinel',
   GH_TOKEN: 'github-token-sentinel',
@@ -17,6 +18,7 @@ const sentinelEnvironment = {
 };
 
 const sensitiveEnvironmentNames = [
+  'TOKEN',
   'NODE_AUTH_TOKEN',
   'NPM_TOKEN',
   'GH_TOKEN',

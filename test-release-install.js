@@ -104,7 +104,7 @@ function redactSecrets(value, environment = process.env) {
     .filter(([name, environmentValue]) => (
       !verificationEnvironmentNames.has(name.toUpperCase()) &&
       typeof environmentValue === 'string' &&
-      environmentValue.length >= 4
+      environmentValue.length > 0
     ))
     .map(([, environmentValue]) => String(environmentValue))
     .sort((left, right) => right.length - left.length);
