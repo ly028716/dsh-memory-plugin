@@ -79,6 +79,16 @@ junction，请显式执行上面的 `--fix`。它只会把物理目录移动到�
 插件兼容 DSH CLI `>=0.1.1-rc.2 <0.2.0`。真实安装测试会使用 npm packed tarball；GitHub
 源代码安装测试必须锁定完整 40 位 commit SHA。
 
+发布包安装与可复现的 pinned commit 安装都使用同一个 DSH 命令：
+
+```bash
+# npm 发布包（推荐）
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+
+# GitHub pinned commit（CI/审计场景；替换为完整 40 位 SHA）
+dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
+```
+
 #### 方式 3：直接集成到代码
 
 ```javascript
@@ -139,6 +149,18 @@ console.log(stats);
 - 默认启动只使用内存中的空白记忆，不创建 `.dsh-memory.json`，也不会记录 `metadata.totalSessions`。
 - `setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 和 `importData()` 属于显式操作，即使自动采集开关关闭也会持久化。
 - 只要打开任一自动采集开关，插件启动时就会加载或创建存储文件，并记录一次会话元数据。
+
+### DSH Agent prompt/tool 集成
+
+在兼容的 DSH profile 中，插件会把本地记忆接入 Agent：
+
+- `prompt context` 是只读、限长且经过脱敏的 `Memory context (user-controlled local memory):` 文本。它会在每次 prompt assembly 时读取最新显式记忆，因此 Agent 可以据此调整模型、工具或工作流建议；记忆内容仍属于用户控制的数据，不是系统指令。
+- Agent 工具名为 `memory`，支持 `search`（按关键词/类别查询）、`remember`（写入 `preference`、`topic`、`task` 或 `project`）和 `forget`（清空全部记忆）。`remember` 是显式写入，即使默认自动采集关闭也会持久化。
+- `forget` 只有在 `allowClearMemory: true` 时才允许，并且不接受过滤参数；若需要保留其他内容，请使用 `search`/导出后再由用户决定。默认自动采集仍关闭，四个 `track*` 开关不会因 Agent 工具注册而自动打开。
+
+### DSH Web 设置卡
+
+打开 DSH 的 `Settings > Plugins > Memory` 可实时调整六个设置：`trackToolCalls`、`trackPreferences`、`trackProjectContext`、`trackSessionHistory`、`enableRecommendations`、`allowClearMemory`。Web 设置依赖是可选的：安装了 DSH Web client 时显示设置卡；只有 CLI/Host 时，prompt、tool 和 `ctx.memory` API 仍可用。
 
 ## ⚙️ 配置选项
 
@@ -275,7 +297,13 @@ dsh-memory-plugin/
 # 运行测试
 npm test
 
-# 运行真实 DSH clean-profile E2E（未安装 dsh 时安全跳过）
+# 运行真实 DSH clean-profile E2E（未安装 dsh 时安全跳过；已安装但不兼容或 host probe 不可用会失败）
+npm run test:dsh-e2e
+
+# Windows 可显式指定本机 DSH；需要验证宿主时建议同时指定安装根目录
+$env:DSH_BIN="$env:APPDATA\npm\dsh.cmd"
+$env:DSH_PACKAGE_ROOT="$env:APPDATA\npm\node_modules\@deepseek-ai\dsh"
+$env:DSH_E2E_REQUIRED="1"
 npm run test:dsh-e2e
 
 # 当前支持：DSH CLI >=0.1.1-rc.2 <0.2.0（已验证 0.1.1-rc.2）

@@ -80,6 +80,16 @@ verification; npm is the normal user installation path.
 This plugin supports DSH CLI `>=0.1.1-rc.2 <0.2.0`. The real install test uses an npm packed tarball;
 GitHub source installation tests must use a full 40-character commit SHA.
 
+Use the same DSH command for the published package and reproducible pinned-commit installs:
+
+```bash
+# npm release (recommended)
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+
+# GitHub pinned commit (CI/audit; replace with the full 40-character SHA)
+dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
+```
+
 #### Option 3: Direct Code Integration
 
 ```javascript
@@ -140,6 +150,18 @@ console.log(stats);
 - With the default configuration, startup keeps an empty memory in RAM, does not create `.dsh-memory.json`, and does not record `metadata.totalSessions`.
 - `setPreference()`, `recordTopic()`, `recordTask()`, `addProject()`, `storage.set()`, and `importData()` are explicit operations and persist data even when automatic collection is disabled.
 - Enabling any automatic collection toggle makes startup load or create the storage file and record one session in the metadata.
+
+### DSH Agent prompt/tool integration
+
+In a compatible DSH profile, the plugin connects memory to the Agent:
+
+- The `prompt context` is a read-only, bounded, redacted `Memory context (user-controlled local memory):` block. It reads the latest explicit memory during every prompt assembly, so the Agent can use it when choosing model, tool, or workflow recommendations. Memory remains user-controlled data, not system instructions.
+- The Agent tool is named `memory` and supports `search` (keyword/category lookup), `remember` (explicitly write a `preference`, `topic`, `task`, or `project`), and `forget` (clear all memory). `remember` persists even while automatic collection is disabled.
+- `forget` is allowed only when `allowClearMemory: true` and rejects filter arguments; use search/export before asking the user to clear data selectively. Automatic collection remains off by default, and registering the Agent tool does not enable any `track*` toggle.
+
+### DSH Web settings card
+
+Open `Settings > Plugins > Memory` in DSH to change six live settings: `trackToolCalls`, `trackPreferences`, `trackProjectContext`, `trackSessionHistory`, `enableRecommendations`, and `allowClearMemory`. Web settings dependencies are optional: with the DSH Web client the card is shown; with CLI/Host only, the prompt, tool, and `ctx.memory` API remain available.
 
 ## ⚙️ Configuration Options
 
@@ -276,7 +298,13 @@ dsh-memory-plugin/
 # Run tests
 npm test
 
-# Run the real DSH clean-profile E2E (skips safely when dsh is unavailable)
+# Run the real DSH clean-profile E2E (skips only when dsh is unavailable; incompatible or unavailable host probe fails)
+npm run test:dsh-e2e
+
+# Windows: explicitly select a locally installed DSH for the host probe
+$env:DSH_BIN="$env:APPDATA\npm\dsh.cmd"
+$env:DSH_PACKAGE_ROOT="$env:APPDATA\npm\node_modules\@deepseek-ai\dsh"
+$env:DSH_E2E_REQUIRED="1"
 npm run test:dsh-e2e
 
 # Supported DSH CLI: >=0.1.1-rc.2 <0.2.0 (verified: 0.1.1-rc.2)

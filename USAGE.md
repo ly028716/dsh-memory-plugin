@@ -1,5 +1,25 @@
 # Memory Plugin 使用示例
 
+## DSH 安装与兼容版本
+
+支持的 DSH CLI 范围为 `>=0.1.1-rc.2 <0.2.0`。普通用户使用 npm 包；CI 或审计场景可锁定 GitHub 的完整 40 位 commit，命令格式统一为：
+
+```bash
+# npm 发布包
+dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
+
+# GitHub pinned commit（将 <commit-sha> 替换为完整 SHA）
+dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
+```
+
+验证 clean profile、doctor、config、真实 Agent prompt/tool 宿主和启动/停止冒烟：
+
+```bash
+npm run test:dsh-e2e
+```
+
+未安装 DSH CLI 时该命令安全跳过；如果 DSH 已安装但版本不兼容，或真实 host probe 报 `host probe unavailable`，测试会失败而不会静默跳过。
+
 ## 基本用法
 
 ### 1. 在 DSH 配置中使用
@@ -27,6 +47,16 @@ module.exports = {
 默认配置下，插件不会自动记录工具调用、偏好、项目或会话内容；启动也不会创建记忆文件或增加会话计数。四个 `track*` 配置项只控制自动采集。
 
 通过 `ctx.memory.setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 或 `importData()` 进行的显式操作会主动持久化，不受对应自动采集开关影响。
+
+## DSH Agent prompt/tool 集成
+
+插件注册后，DSH Agent 每次组装 prompt 都会读取最新的只读记忆上下文：
+
+- prompt context 会生成带 `Memory context (user-controlled local memory):` 标记的限长、脱敏文本，内容可以影响 Agent 对模型、工具和工作流的建议，但记忆不会被当作系统指令。
+- Agent 可调用 `memory` 工具：`search` 查询关键词/类别，`remember` 显式写入 `preference`、`topic`、`task` 或 `project`，`forget` 请求清空全部记忆。
+- `remember` 即使在默认自动采集关闭时也会写入；`forget` 必须配置 `allowClearMemory: true`，且不接受过滤参数。默认四个 `track*` 开关仍全部关闭。
+
+如果使用 DSH Web client，可在 `Settings > Plugins > Memory` 实时调整六个设置：`trackToolCalls`、`trackPreferences`、`trackProjectContext`、`trackSessionHistory`、`enableRecommendations`、`allowClearMemory`。Web 依赖是可选的；没有 Web UI 时，CLI/Host 的 prompt、tool 和 `ctx.memory` API 不受影响。
 
 ### 2. 在其他插件中访问记忆服务
 

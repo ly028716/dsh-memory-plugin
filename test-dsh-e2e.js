@@ -209,6 +209,147 @@ function findDshCommand(env) {
   return null;
 }
 
+function resolveCommandPath(command) {
+  if (path.isAbsolute(command) && fs.existsSync(command)) return command;
+  const lookupCommand = process.platform === 'win32' ? 'where.exe' : 'which';
+  const lookup = spawnSync(lookupCommand, [command], { encoding: 'utf8' });
+  if (lookup.status !== 0) return null;
+  return String(lookup.stdout || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean) || null;
+}
+
+function findDshPackageRoot(command) {
+  const commandPath = resolveCommandPath(command);
+  const candidates = [
+    process.env.DSH_PACKAGE_ROOT,
+    commandPath && path.join(path.dirname(commandPath), 'node_modules', '@deepseek-ai', 'dsh'),
+    commandPath && path.join(path.dirname(commandPath), '..', 'node_modules', '@deepseek-ai', 'dsh'),
+    process.env.APPDATA && path.join(process.env.APPDATA, 'npm', 'node_modules', '@deepseek-ai', 'dsh'),
+    process.env.PREFIX && path.join(process.env.PREFIX, 'lib', 'node_modules', '@deepseek-ai', 'dsh')
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => fs.existsSync(path.join(candidate, 'package.json'))) || null;
+}
+
+async function importDshPackage(dshRoot, packageName) {
+  let modulePath;
+  try {
+    modulePath = require.resolve(packageName, { paths: [dshRoot] });
+  } catch (error) {
+    throw new Error(`host probe unavailable: cannot resolve ${packageName} from ${dshRoot}: ${error.message}`);
+  }
+  return import(require('url').pathToFileURL(modulePath).href);
+}
+
+async function runHostProbe({ installedRoot, dshCommand, dshVersion }) {
+  const dshRoot = findDshPackageRoot(dshCommand);
+  if (!dshRoot) throw new Error('host probe unavailable: DSH package root could not be resolved');
+
+  let cordis;
+  let promptModule;
+  let toolsModule;
+  let settingsModule;
+  try {
+    [cordis, promptModule, toolsModule, settingsModule] = await Promise.all([
+      importDshPackage(dshRoot, '@deepseek-ai/cordis'),
+      importDshPackage(dshRoot, '@deepseek-ai/dsh-system-prompt'),
+      importDshPackage(dshRoot, '@deepseek-ai/dsh-tools'),
+      importDshPackage(dshRoot, '@deepseek-ai/dsh-settings')
+    ]);
+  } catch (error) {
+    if (error.message.startsWith('host probe unavailable:')) throw error;
+    throw new Error(`host probe unavailable: failed to load DSH prompt/tool services: ${error.message}`);
+  }
+
+  const Context = cordis.Context;
+  const SystemPrompt = promptModule.SystemPrompt;
+  const ToolRuntime = toolsModule.ToolRuntime;
+  const SettingsProvider = settingsModule.SettingsProvider;
+  if (typeof Context !== 'function' || typeof SystemPrompt !== 'function' || typeof ToolRuntime !== 'function' || typeof SettingsProvider !== 'function') {
+    throw new Error('host probe unavailable: DSH 0.1.1-rc.2 prompt/tool/settings services are not exported');
+  }
+
+  let plugin;
+  try {
+    plugin = require(installedRoot);
+  } catch (error) {
+    throw new Error(`installed plugin entry failed to load: ${error.stack || error.message}`);
+  }
+  if (!plugin || typeof plugin.apply !== 'function') {
+    throw new Error('installed plugin entry does not expose a Cordis apply function');
+  }
+
+  const probeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-memory-host-probe-'));
+  const ctx = new Context();
+  try {
+    await ctx.plugin(SystemPrompt);
+    await ctx.plugin(ToolRuntime);
+    class ProbeSettingsProvider extends SettingsProvider {
+      async load() {
+        return {};
+      }
+
+      async persist() {
+        return undefined;
+      }
+    }
+    await ctx.plugin(ProbeSettingsProvider);
+    const hostPlugin = {
+      ...plugin,
+      inject: ['systemPrompt', 'tools', 'settings']
+    };
+    await ctx.plugin(hostPlugin, {
+      storagePath: path.join(probeRoot, 'memory.json'),
+      allowClearMemory: false
+    });
+
+    const systemPrompt = ctx.get('systemPrompt');
+    const toolRuntime = ctx.get('tools');
+    const memory = ctx.get('memory');
+    if (!systemPrompt || !toolRuntime || !memory) {
+      throw new Error(`host probe unavailable: DSH host did not expose services (systemPrompt=${Boolean(systemPrompt)}, tools=${Boolean(toolRuntime)}, memory=${Boolean(memory)})`);
+    }
+    await memory.ready;
+
+    const memoryDefinition = toolRuntime.get('memory');
+    if (!memoryDefinition || typeof memoryDefinition.execute !== 'function') {
+      throw new Error('DSH host tool probe did not expose an executable memory tool');
+    }
+    const remember = await memoryDefinition.execute({
+      action: 'remember',
+      category: 'preference',
+      key: 'defaultModel',
+      value: 'deepseek-e2e-model'
+    });
+    if (remember.ok !== true) throw new Error(`memory tool remember failed: ${remember.code || 'unknown error'}`);
+    const search = await memoryDefinition.execute({ action: 'search', query: 'deepseek-e2e-model' });
+    if (search.ok !== true || !search.text.includes('deepseek-e2e-model')) {
+      throw new Error('memory tool search did not return the remembered value');
+    }
+    const forget = await memoryDefinition.execute({ action: 'forget' });
+    if (forget.ok !== false || forget.code !== 'MEMORY_CLEAR_DISABLED') {
+      throw new Error('memory tool forget did not enforce allowClearMemory=false');
+    }
+
+    await memory.setPreference('apiKey', 'sk-e2e-secret');
+    const assembly = await systemPrompt.assemble();
+    const promptText = typeof promptModule.renderContextSnapshot === 'function'
+      ? promptModule.renderContextSnapshot(assembly)
+      : assembly.contexts.map((context) => context.text).join('\n\n');
+    const schema = toolRuntime.schemas().find((entry) => entry.name === 'memory');
+    if (!schema) throw new Error('DSH host tool schemas did not include memory');
+    const actionEnum = schema.parameters?.properties?.action?.enum || [];
+    return {
+      dshVersion,
+      promptText,
+      toolNames: toolRuntime.schemas().map((entry) => entry.name),
+      toolActions: actionEnum
+    };
+  } finally {
+    await ctx.fiber.dispose();
+    fs.rmSync(probeRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+}
+
 function assertSuccess(step, result) {
   if (result.error) {
     throw new Error(`${step} failed: ${result.error.code || result.error.message}`);
@@ -373,14 +514,16 @@ async function runE2E() {
       throw new Error('DSH config dump does not contain the memory plugin bundle');
     }
 
+    const installedRoot = findInstalledPackage(profileDir);
     const hostProbe = await runHostProbe({
-      installedRoot: installed,
+      installedRoot,
+      dshCommand: dsh.command,
       dshVersion: formatVersion(dsh.version)
     });
     if (!hostProbe.promptText.includes('Memory context (user-controlled local memory):')) {
       throw new Error('DSH host prompt probe did not expose the memory context');
     }
-    if (!hostProbe.promptText.includes('preferred model:')) {
+    if (!hostProbe.promptText.includes('defaultModel:')) {
       throw new Error('DSH host prompt probe did not include the written preference');
     }
     if (hostProbe.promptText.includes('sk-')) {
