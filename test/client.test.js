@@ -7,6 +7,16 @@ function loadClient() {
   return require('../client');
 }
 
+function mockReact() {
+  jest.doMock('react', () => ({
+    createElement: (type, props, ...children) => ({
+      type,
+      props: props || {},
+      children
+    })
+  }), { virtual: true });
+}
+
 function createContext(overrides = {}) {
   const binding = {
     values: {
@@ -88,6 +98,7 @@ test('apply safely returns when settingsScope capability is missing', () => {
 });
 
 test('waits for the standard settings slot before registering the keyed Memory card', () => {
+  mockReact();
   const { apply, MEMORY_NAMESPACE, SETTINGS_FIELDS } = loadClient();
   const ctx = createContext();
 
@@ -144,6 +155,10 @@ test('MemorySettingsCard renders a React element with six checkbox controls and 
   }), { virtual: true });
 
   const collect = (node, result = []) => {
+    if (Array.isArray(node)) {
+      for (const child of node) collect(child, result);
+      return result;
+    }
     if (!node || typeof node !== 'object') return result;
     if (node.type === 'input' && node.props.type === 'checkbox') result.push(node);
     for (const child of node.children || []) collect(child, result);
@@ -174,6 +189,7 @@ test('MemorySettingsCard renders a React element with six checkbox controls and 
 });
 
 test('card injection exposes only boolean settings and binding status', () => {
+  mockReact();
   const { apply } = loadClient();
   const ctx = createContext();
   apply(ctx);
@@ -199,6 +215,7 @@ test('card injection exposes only boolean settings and binding status', () => {
 });
 
 test('registered disposer is safe to invoke', () => {
+  mockReact();
   const { apply } = loadClient();
   const slotDispose = jest.fn();
   const ctx = createContext();

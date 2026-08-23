@@ -51,7 +51,7 @@ try {
   if (!fs.existsSync(artifactPath)) throw new Error('Package artifact was not created');
 
   runNpm(['init', '--yes'], packageDir);
-  runNpm(['install', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
+  runNpm(['install', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
 
   const installedRoot = path.join(packageDir, 'node_modules', packageJson.name);
   const plugin = require(installedRoot);

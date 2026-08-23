@@ -16,6 +16,14 @@ function getCapability(ctx, name) {
   return ctx[name];
 }
 
+function loadReact() {
+  try {
+    return require('react');
+  } catch (_error) {
+    return undefined;
+  }
+}
+
 function readValues(binding) {
   try {
     if (typeof binding.getValues === 'function') return binding.getValues();
@@ -61,7 +69,7 @@ function updateValues(binding, field, value) {
   }
 }
 
-function createCardModel(binding) {
+function createCardProps(binding) {
   const values = booleanValues(binding);
   const fields = SETTINGS_FIELDS.reduce((result, field) => {
     result[field] = {
@@ -80,18 +88,44 @@ function createCardModel(binding) {
   };
 }
 
-// The host may adapt this framework-neutral view model to its own component
-// system. Keeping this function local avoids making React/Vue a production
-// dependency of the CLI plugin.
 function MemorySettingsCard(props) {
-  return props;
+  const React = loadReact();
+  if (!React || typeof React.createElement !== 'function') return null;
+
+  const fields = props?.fields || {};
+  const status = props?.status || {};
+  const controls = SETTINGS_FIELDS.map((field) => {
+    const definition = fields[field] || {};
+    return React.createElement(
+      'label',
+      { key: field },
+      React.createElement('input', {
+        type: 'checkbox',
+        checked: definition.value === true,
+        disabled: status.writable === false,
+        onChange: (event) => definition.set?.(event?.target?.checked === true)
+      }),
+      field
+    );
+  });
+
+  return React.createElement(
+    'section',
+    { 'data-dsh-memory': MEMORY_NAMESPACE },
+    React.createElement('h2', null, props?.title || 'Memory'),
+    `writable: ${Boolean(status.writable)}`,
+    `dirty: ${Boolean(status.dirty)}`,
+    `failed: ${Boolean(status.failed)}`,
+    controls
+  );
 }
 
 function apply(ctx) {
   const slots = getCapability(ctx, 'slots');
   const settingsScope = getCapability(ctx, 'settingsScope');
-  if (!slots || typeof slots.register !== 'function') return undefined;
+  if (!slots || typeof slots.inject !== 'function' || typeof slots.register !== 'function') return undefined;
   if (!settingsScope || typeof settingsScope.bind !== 'function') return undefined;
+  if (!loadReact()) return undefined;
 
   let binding;
   try {
@@ -102,22 +136,32 @@ function apply(ctx) {
   if (!binding) return undefined;
 
   let slotDispose;
+  let injectionDispose;
   try {
-    slotDispose = slots.register({
-      name: SLOT_NAME,
-      key: MEMORY_NAMESPACE,
-      locale: MEMORY_LOCALE_NAMESPACE,
-      inject: () => createCardModel(binding)
-    }, MemorySettingsCard);
+    injectionDispose = slots.inject(SLOT_NAME, () => {
+      slotDispose = slots.register({
+        name: SLOT_NAME,
+        key: MEMORY_NAMESPACE,
+        locale: MEMORY_LOCALE_NAMESPACE,
+        inject: () => createCardProps(binding)
+      }, MemorySettingsCard);
+      return slotDispose;
+    });
   } catch (_error) {
     return undefined;
   }
 
+  let disposed = false;
   const dispose = () => {
-    try {
-      if (typeof slotDispose === 'function') slotDispose();
-    } catch (_error) {
-      // Host disposal is best effort.
+    if (disposed) return;
+    disposed = true;
+    const disposers = new Set([slotDispose, injectionDispose]);
+    for (const registrationDispose of disposers) {
+      try {
+        if (typeof registrationDispose === 'function') registrationDispose();
+      } catch (_error) {
+        // Host disposal is best effort.
+      }
     }
     try {
       if (typeof binding.dispose === 'function') binding.dispose();

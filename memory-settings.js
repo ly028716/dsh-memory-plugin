@@ -48,6 +48,7 @@ function registerMemorySettings(ctx, config, onChange) {
   const options = {
     base: pickSettings(config),
     applies: 'live',
+    expose: 'web',
     validate(value) {
       return validateConfig({ ...config, ...pickSettings(value) });
     }
