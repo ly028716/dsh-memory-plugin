@@ -34,7 +34,7 @@ describe('MemoryStorage', () => {
       const content = await fs.readFile(testFile, 'utf-8');
       const data = JSON.parse(content);
       
-      expect(data.version).toBe('1.0.0');
+      expect(data.version).toBe('1.1.0');
       expect(data.metadata.createdAt).toBeDefined();
       expect(data.userPreferences).toBeDefined();
     });
@@ -42,7 +42,7 @@ describe('MemoryStorage', () => {
     test('should keep defaults in memory without persisting when requested', async () => {
       await storage.initialize({ persistIfMissing: false });
 
-      expect(storage.get('version')).toBe('1.0.0');
+      expect(storage.get('version')).toBe('1.1.0');
       await expect(fs.access(testFile)).rejects.toThrow();
     });
 
@@ -55,6 +55,28 @@ describe('MemoryStorage', () => {
       
       const value = storage.get('customField');
       expect(value).toBe('test');
+    });
+
+    test('should load legacy data and persist the migrated version', async () => {
+      await fs.writeFile(testFile, JSON.stringify({
+        version: '1.0.0',
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z' },
+        userPreferences: { defaultModel: 'legacy-model' }
+      }));
+
+      await storage.initialize();
+
+      expect(storage.get('version')).toBe('1.1.0');
+      expect(storage.get('metadata.schemaVersion')).toBe(2);
+      expect(JSON.parse(await fs.readFile(testFile, 'utf8')).version).toBe('1.1.0');
+    });
+
+    test('should not replace the source when migration rejects the document', async () => {
+      const original = JSON.stringify({ version: '9.0.0', metadata: {} });
+      await fs.writeFile(testFile, original);
+
+      await expect(storage.initialize()).rejects.toThrow('Unsupported memory data version');
+      expect(await fs.readFile(testFile, 'utf8')).toBe(original);
     });
 
     test('should initialize concurrent callers only once', async () => {
@@ -337,7 +359,7 @@ describe('MemoryStorage', () => {
       const data = storage.exportData();
       
       expect(data.userPreferences.test).toBe('value');
-      expect(data.version).toBe('1.0.0');
+      expect(data.version).toBe('1.1.0');
     });
 
     test('should deep clone exported and imported data', async () => {

@@ -4,6 +4,8 @@
  */
 
 const { MemoryStorage, DEFAULT_MEMORY, cloneData, parseDotPath } = require('./storage');
+const { DataLifecycleManager } = require('./data-lifecycle');
+const fs = require('fs').promises;
 const path = require('path');
 const { redactSensitiveData, redactProjectPath } = require('./privacy');
 const { INPUT_LIMITS, assertTextLength, assertDataWithinLimits } = require('./limits');
@@ -12,6 +14,7 @@ class MemoryManager {
   constructor(config, storage) {
     this.config = config;
     this.storage = storage;
+    this.lifecycle = new DataLifecycleManager(storage, config);
     this.autoSaveTimer = null;
     this._autoSaveGeneration = 0;
     this.sessionStartTime = null;
@@ -27,6 +30,14 @@ class MemoryManager {
 
     this._initializePromise = (async () => {
       const automaticCollectionEnabled = this.isAutomaticCollectionEnabled();
+      if (this.config.backupOnInitialize) {
+        try {
+          await fs.access(this.storage.storagePath);
+          await this.lifecycle.backup('startup');
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+      }
       await this.storage.initialize({
         persistIfMissing: automaticCollectionEnabled,
         persistSanitized: automaticCollectionEnabled
@@ -40,6 +51,7 @@ class MemoryManager {
         this.storage.set('metadata.lastSessionDate', new Date().toISOString());
         await this.storage.save();
       }
+      await this.lifecycle.applyRetention();
     })();
 
     try {
@@ -378,6 +390,26 @@ class MemoryManager {
   async importData(data) {
     await this.ensureInitialized();
     await this.storage.importData(redactSensitiveData(data));
+  }
+
+  async backup(reason = 'manual') {
+    await this.ensureInitialized();
+    return this.lifecycle.backup(reason);
+  }
+
+  async listBackups() {
+    await this.ensureInitialized();
+    return this.lifecycle.listBackups();
+  }
+
+  async restoreBackup(name) {
+    await this.ensureInitialized();
+    return this.lifecycle.restoreBackup(name);
+  }
+
+  async applyRetention() {
+    await this.ensureInitialized();
+    return this.lifecycle.applyRetention();
   }
 
   /**

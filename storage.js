@@ -8,6 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { redactSensitiveData } = require('./privacy');
 const { INPUT_LIMITS, assertDataWithinLimits } = require('./limits');
+const { CURRENT_DATA_VERSION, CURRENT_SCHEMA_VERSION, migrateData } = require('./migrations');
 
 const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 const LOCK_RETRY_INTERVAL_MS = 25;
@@ -59,7 +60,7 @@ function setPathValue(value, dotPath, nestedValue) {
  * Default memory structure
  */
 const DEFAULT_MEMORY = {
-  version: '1.0.0',
+  version: CURRENT_DATA_VERSION,
   lastUpdated: null,
   userPreferences: {
     preferredAgents: [],
@@ -82,6 +83,7 @@ const DEFAULT_MEMORY = {
     toolUsageStats: {}
   },
   metadata: {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     createdAt: null,
     totalSessions: 0,
     lastSessionDate: null
@@ -280,13 +282,15 @@ class MemoryStorage {
       throw new Error('Invalid memory data format');
     }
 
-    const sanitized = redactSensitiveData(parsed);
+    const migrated = migrateData(parsed);
+    const sanitized = redactSensitiveData(migrated);
     this.memory = mergeDefaults(DEFAULT_MEMORY, sanitized);
-    this.isDirty = JSON.stringify(sanitized) !== JSON.stringify(parsed);
+    const migrationApplied = parsed.version !== migrated.version;
+    this.isDirty = migrationApplied || JSON.stringify(sanitized) !== JSON.stringify(parsed);
     this._dirtyVersion = 0;
     this._dirtyPaths.clear();
     this._replaceOnSave = this.isDirty;
-    if (this.isDirty && persistSanitized) {
+    if (this.isDirty && (persistSanitized || migrationApplied)) {
       await this.save();
     } else if (this.isDirty) {
       this.isDirty = false;
@@ -542,14 +546,11 @@ class MemoryStorage {
    * @param {Object} data - Memory data to import
    */
   async importData(data) {
-    // Basic validation
-    if (!data || typeof data !== 'object' || Array.isArray(data) || !data.version || !data.metadata) {
-      throw new Error('Invalid memory data format');
-    }
     assertDataWithinLimits(data, 'import data', INPUT_LIMITS.maxMemoryFileBytes);
+    const migrated = migrateData(data);
     
     await this.initialize();
-    this.memory = mergeDefaults(DEFAULT_MEMORY, redactSensitiveData(data));
+    this.memory = mergeDefaults(DEFAULT_MEMORY, redactSensitiveData(migrated));
     this.markDirty();
     await this.save();
   }
