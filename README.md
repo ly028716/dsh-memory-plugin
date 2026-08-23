@@ -150,6 +150,22 @@ console.log(stats);
 - `setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 和 `importData()` 属于显式操作，即使自动采集开关关闭也会持久化。
 - 只要打开任一自动采集开关，插件启动时就会加载或创建存储文件，并记录一次会话元数据。
 
+### 数据迁移、备份与恢复
+
+记忆文件会在加载时从旧版本自动迁移到当前数据版本。若主文件已存在，插件默认在启动迁移前将原始文件保存到 `.dsh-memory.json.backups/`；备份只保存在本地，并使用原子写入和私有文件权限。
+
+```javascript
+// 手动创建快照、查看快照并恢复指定快照
+const snapshot = await ctx.memory.backup();
+const backups = await ctx.memory.listBackups();
+await ctx.memory.restoreBackup(snapshot.name);
+
+// 按保留天数和数量清理过期快照
+await ctx.memory.applyRetention();
+```
+
+恢复前会自动创建 `restore-safety` 快照，并先校验 JSON、大小限制和数据版本。默认保留最近 30 天且最多 10 份；只有同时超过时间和数量限制的快照才会被删除。
+
 ### DSH Agent prompt/tool 集成
 
 在兼容的 DSH profile 中，插件会把本地记忆接入 Agent：
@@ -168,6 +184,12 @@ console.log(stats);
 {
   // 存储文件路径（相对于工作区）
   storagePath: '.dsh-memory.json',
+
+  // 本地备份目录；null 表示使用 <storagePath>.backups
+  backupDir: null,
+  backupOnInitialize: true,
+  backupRetentionDays: 30,
+  backupRetentionCount: 10,
   
   // 最大历史记录数量
   maxHistoryItems: 100,
@@ -274,6 +296,8 @@ dsh-memory-plugin/
 ├── index.js              # 主入口文件
 ├── config.js             # 配置验证模块
 ├── storage.js            # 数据存储引擎
+├── migrations.js         # 版本化数据迁移
+├── data-lifecycle.js     # 备份、恢复与保留策略
 ├── memory-manager.js     # 核心记忆管理
 ├── package.json          # NPM 包配置
 ├── viewer.html           # 默认 Web 查看器

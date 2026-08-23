@@ -58,7 +58,7 @@
     "test:package": "node test-package.js",
     "test:pinned-commit": "node test-pinned-commit.js",
     "test:dsh-e2e": "node test-dsh-e2e.js",
-    "check": "node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check memory-manager.js && node --check privacy.js",
+    "check": "node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check migrations.js && node --check data-lifecycle.js && node --check memory-manager.js && node --check privacy.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },

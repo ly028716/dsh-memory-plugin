@@ -151,6 +151,22 @@ console.log(stats);
 - `setPreference()`, `recordTopic()`, `recordTask()`, `addProject()`, `storage.set()`, and `importData()` are explicit operations and persist data even when automatic collection is disabled.
 - Enabling any automatic collection toggle makes startup load or create the storage file and record one session in the metadata.
 
+### Data migration, backup, and restore
+
+Memory files are migrated forward to the current data version during loading. When a storage file already exists, startup creates a raw pre-migration snapshot in `.dsh-memory.json.backups/` by default. Backups remain local and use atomic writes with private file permissions.
+
+```javascript
+// Create and list snapshots, then restore a selected snapshot
+const snapshot = await ctx.memory.backup();
+const backups = await ctx.memory.listBackups();
+await ctx.memory.restoreBackup(snapshot.name);
+
+// Remove snapshots outside the retention policy
+await ctx.memory.applyRetention();
+```
+
+Restore creates a `restore-safety` snapshot first, then validates JSON, size limits, and the data version. The defaults retain snapshots from the last 30 days and at least the 10 most recent snapshots; a snapshot is deleted only when it is both older than the time limit and outside the count limit.
+
 ### DSH Agent prompt/tool integration
 
 In a compatible DSH profile, the plugin connects memory to the Agent:
@@ -169,6 +185,12 @@ Open `Settings > Plugins > Memory` in DSH to change six live settings: `trackToo
 {
   // Storage file path (relative to workspace)
   storagePath: '.dsh-memory.json',
+
+  // Local backup directory; null uses <storagePath>.backups
+  backupDir: null,
+  backupOnInitialize: true,
+  backupRetentionDays: 30,
+  backupRetentionCount: 10,
   
   // Maximum number of history items
   maxHistoryItems: 100,
@@ -275,6 +297,8 @@ dsh-memory-plugin/
 ├── index.js              # Main entry point
 ├── config.js             # Configuration validation module
 ├── storage.js            # Data storage engine
+├── migrations.js         # Versioned data migrations
+├── data-lifecycle.js     # Backup, restore, and retention
 ├── memory-manager.js     # Core memory management
 ├── package.json          # NPM package configuration
 ├── viewer.html           # Default web viewer

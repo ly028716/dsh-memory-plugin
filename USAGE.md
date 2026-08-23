@@ -48,6 +48,19 @@ module.exports = {
 
 通过 `ctx.memory.setPreference()`、`recordTopic()`、`recordTask()`、`addProject()`、`storage.set()` 或 `importData()` 进行的显式操作会主动持久化，不受对应自动采集开关影响。
 
+## 数据迁移、备份与恢复
+
+记忆 JSON 文件会在加载时自动前向迁移。已有主文件默认会在启动迁移前生成本地启动快照，目录为 `<storagePath>.backups`；也可以通过 `backupDir` 指定目录。
+
+```javascript
+const snapshot = await ctx.memory.backup();
+console.log(await ctx.memory.listBackups());
+await ctx.memory.restoreBackup(snapshot.name);
+await ctx.memory.applyRetention();
+```
+
+恢复前会自动生成 safety backup，并在写入前校验快照内容和版本。默认保留 30 天内的快照，并至少保留最近 10 份；只有同时超过时间与数量限制的快照才会被清理。
+
 ## DSH Agent prompt/tool 集成
 
 插件注册后，DSH Agent 每次组装 prompt 都会读取最新的只读记忆上下文：
