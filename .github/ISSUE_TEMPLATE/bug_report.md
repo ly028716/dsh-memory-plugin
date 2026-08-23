@@ -6,6 +6,8 @@ labels: bug
 assignees: ''
 ---
 
+> **安全漏洞请勿通过公开 Issue 报告。** 如涉及安全漏洞，请参阅 [SECURITY.md](../../SECURITY.md) 并使用其中列出的私密渠道报告。
+
 ## 问题说明 / Description
 
 请简要说明问题及其影响范围。
@@ -32,3 +34,7 @@ assignees: ''
 - 其他相关环境信息：
 
 请勿粘贴 Token、私钥或真实个人数据。
+
+## 隐私、兼容性或迁移影响 / Privacy, compatibility, or migration impact
+
+请说明该问题可能造成的隐私、兼容性或数据迁移影响；如不涉及，请明确说明。
