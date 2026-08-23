@@ -638,6 +638,9 @@ async function runE2E() {
     }
 
     const doctor = runDoctor(profileDir, dshHome, profileName);
+    if (!Number.isInteger(doctor.passes) || doctor.passes < 1) {
+      throw new Error('DSH profile doctor did not report a repair pass count');
+    }
     console.log(`DSH profile doctor passed: moved ${doctor.moved.length} physical fallback entries`);
 
     const dump = await runDshAsync(dsh.command, ['--profile', profileName, '--dump-config'], env, commandTimeoutMs);
