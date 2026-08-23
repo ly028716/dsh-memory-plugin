@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const packageJson = require('../package.json');
 
 function loadClient() {
@@ -5,26 +8,31 @@ function loadClient() {
 }
 
 function createContext(overrides = {}) {
-  const settingsScope = {
-    bind: jest.fn(() => ({
-      values: {
-        trackToolCalls: false,
-        trackPreferences: true,
-        trackProjectContext: false,
-        trackSessionHistory: true,
-        enableRecommendations: true,
-        allowClearMemory: false
-      },
-      update: jest.fn(),
-      subscribe: jest.fn(() => jest.fn())
-    }))
+  const binding = {
+    values: {
+      trackToolCalls: false,
+      trackPreferences: true,
+      trackProjectContext: false,
+      trackSessionHistory: true,
+      enableRecommendations: true,
+      allowClearMemory: false
+    },
+    update: jest.fn(),
+    subscribe: jest.fn(() => jest.fn())
   };
-  const slots = { register: jest.fn(() => jest.fn()) };
+  const settingsScope = {
+    bind: jest.fn(() => binding)
+  };
+  const slots = {
+    inject: jest.fn((_name, register) => register()),
+    register: jest.fn(() => jest.fn())
+  };
   const effects = [];
   return {
     get: jest.fn((name) => ({ slots, settingsScope }[name])),
     slots,
     settingsScope,
+    binding,
     effects,
     effect: jest.fn((factory) => {
       const dispose = factory();
@@ -45,7 +53,8 @@ test('publishes optional DSH client metadata and package export', () => {
   expect(packageJson.dsh.client.platform).toBe('web');
   expect(packageJson.dsh.client.inject).toEqual(expect.arrayContaining([
     '@deepseek-ai/dsh-client-runtime',
-    '@deepseek-ai/dsh-client-ui-settings'
+    '@deepseek-ai/dsh-client-ui-settings',
+    '@deepseek-ai/dsh-client-ui-settings-plugins'
   ]));
   expect(packageJson.files).toEqual(expect.arrayContaining(['client.js']));
   expect(packageJson.main).toBe('index.js');
@@ -78,7 +87,7 @@ test('apply safely returns when settingsScope capability is missing', () => {
   expect(ctx.effect).not.toHaveBeenCalled();
 });
 
-test('registers the keyed Memory settings card with the namespace and six booleans', () => {
+test('waits for the standard settings slot before registering the keyed Memory card', () => {
   const { apply, MEMORY_NAMESPACE, SETTINGS_FIELDS } = loadClient();
   const ctx = createContext();
 
@@ -86,6 +95,7 @@ test('registers the keyed Memory settings card with the namespace and six boolea
 
   expect(ctx.settingsScope.bind).toHaveBeenCalledWith({ namespace: MEMORY_NAMESPACE });
   expect(ctx.settingsScope.bind).toHaveBeenCalledWith({ namespace: 'dsh-memory' });
+  expect(ctx.slots.inject).toHaveBeenCalledWith('settings.plugin.item', expect.any(Function));
   expect(ctx.slots.register).toHaveBeenCalledWith(expect.objectContaining({
     name: 'settings.plugin.item',
     key: 'dsh-memory',
@@ -105,6 +115,62 @@ test('registers the keyed Memory settings card with the namespace and six boolea
   expect(typeof definition.inject).toBe('function');
   expect(card).toBeTruthy();
   expect(ctx.effect).toHaveBeenCalledTimes(1);
+});
+
+test('apply skips the card safely when React is unavailable', () => {
+  jest.resetModules();
+  jest.doMock('react', () => {
+    throw new Error('React is unavailable');
+  }, { virtual: true });
+
+  jest.isolateModules(() => {
+    const { apply } = require('../client');
+    const ctx = createContext();
+
+    expect(() => apply(ctx)).not.toThrow();
+    expect(ctx.slots.inject).not.toHaveBeenCalled();
+  });
+  jest.dontMock('react');
+});
+
+test('MemorySettingsCard renders a React element with six checkbox controls and status', () => {
+  jest.resetModules();
+  jest.doMock('react', () => ({
+    createElement: (type, props, ...children) => ({
+      type,
+      props: props || {},
+      children
+    })
+  }), { virtual: true });
+
+  const collect = (node, result = []) => {
+    if (!node || typeof node !== 'object') return result;
+    if (node.type === 'input' && node.props.type === 'checkbox') result.push(node);
+    for (const child of node.children || []) collect(child, result);
+    return result;
+  };
+
+  jest.isolateModules(() => {
+    const { apply } = require('../client');
+    const ctx = createContext();
+    apply(ctx);
+
+    const [definition, Card] = ctx.slots.register.mock.calls[0];
+    const element = Card(definition.inject());
+    const checkboxes = collect(element);
+
+    expect(element.type).toBe('section');
+    expect(checkboxes).toHaveLength(6);
+    expect(checkboxes.every((input) => typeof input.props.checked === 'boolean')).toBe(true);
+    expect(checkboxes.every((input) => typeof input.props.onChange === 'function')).toBe(true);
+    expect(element.children.join(' ')).toContain('writable');
+    expect(element.children.join(' ')).toContain('dirty');
+    expect(element.children.join(' ')).toContain('failed');
+
+    checkboxes[0].props.onChange({ target: { checked: true } });
+    expect(ctx.binding.update).toHaveBeenCalledWith(expect.objectContaining({ trackToolCalls: true }));
+  });
+  jest.dontMock('react');
 });
 
 test('card injection exposes only boolean settings and binding status', () => {
@@ -141,4 +207,9 @@ test('registered disposer is safe to invoke', () => {
   apply(ctx);
   expect(() => ctx.effects[0]()).not.toThrow();
   expect(slotDispose).toHaveBeenCalledTimes(1);
+});
+
+test('package verification installs with peers omitted', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'test-package.js'), 'utf8');
+  expect(source).toMatch(/runNpm\(\['install',[^\]]*'--omit=peer'/);
 });

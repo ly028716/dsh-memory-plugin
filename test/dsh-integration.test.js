@@ -214,6 +214,7 @@ describe('DSH prompt and tool integration', () => {
       }),
       expect.objectContaining({
         applies: 'live',
+        expose: 'web',
         base: expect.objectContaining({
           trackToolCalls: false,
           trackPreferences: false,
