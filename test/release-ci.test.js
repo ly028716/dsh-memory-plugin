@@ -291,4 +291,34 @@ describe('release CI configuration', () => {
     expect(fs.readFileSync(path.join(rootDir, 'INSTALL.md'), 'utf8'))
       .toContain(compatibilityRange);
   });
+
+  test('should document post-release npm and GitHub artifact installation verification for maintainers', () => {
+    const rootDir = path.join(__dirname, '..');
+    const chineseReadme = fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8');
+    const englishReadme = fs.readFileSync(path.join(rootDir, 'README.en.md'), 'utf8');
+    const installGuide = fs.readFileSync(path.join(rootDir, 'INSTALL.md'), 'utf8');
+    const localSimulation = 'npm run test:release-install -- --version <package-version> --npm-tarball dist/<package-tarball>.tgz --github-tarball dist/<package-tarball>.tgz';
+
+    for (const document of [chineseReadme, englishReadme, installGuide]) {
+      expect(document).toContain('NPM_TOKEN');
+      expect(document).toContain('GH_TOKEN');
+      expect(document).toContain('npm pack --pack-destination dist');
+      expect(document).toContain(localSimulation);
+      expect(document).toContain('doctor');
+      expect(document).toContain('viewer');
+    }
+
+    expect(chineseReadme).toContain('发布维护者');
+    expect(chineseReadme).toContain('草稿 GitHub Release');
+    expect(chineseReadme).toContain('插件入口、DSH bundle patch、doctor CLI 和 viewer 资源');
+    expect(chineseReadme).toContain('无需人工配置');
+
+    expect(englishReadme).toContain('Release maintainers');
+    expect(englishReadme).toContain('draft GitHub Release');
+    expect(englishReadme).toContain('plugin entry point, DSH bundle patch, doctor CLI, and viewer assets');
+    expect(englishReadme).toContain('no manual configuration is required');
+
+    expect(installGuide).toContain('发布维护者');
+    expect(installGuide).toContain('仅用于创建、下载和公开 GitHub Release');
+  });
 });

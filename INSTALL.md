@@ -89,6 +89,23 @@ PowerShell：
 $env:DSH_E2E_REQUIRED = '1'; npm run test:dsh-e2e
 ```
 
+### 发布维护者：发布后安装验证
+
+本节只面向维护者，普通用户仍按上方 npm 安装命令操作。发布 tag Release 前，需要在仓库 Secrets
+中配置 `NPM_TOKEN`。流水线会先校验 tag 与 package version，产出 tarball 并发布 npm；然后创建或
+复用草稿 GitHub Release，从 npm 与精确的 Release asset 分别执行隔离安装 smoke，全部通过后才公开
+Release。
+
+smoke 会检查插件入口、DSH bundle patch、doctor CLI 和 viewer 资源。`GH_TOKEN` 由 GitHub Actions
+提供，仅用于创建、下载和公开 GitHub Release，无需人工配置。
+
+本地可在无网络环境中用同一个 tarball 模拟两个渠道：
+
+```bash
+npm pack --pack-destination dist
+npm run test:release-install -- --version <package-version> --npm-tarball dist/<package-tarball>.tgz --github-tarball dist/<package-tarball>.tgz
+```
+
 ### 1. 检查插件是否加载
 
 启动 DSH 后，查看控制台输出：

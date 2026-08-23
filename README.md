@@ -89,6 +89,23 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
 ```
 
+#### 发布维护者：发布后安装验证
+
+本节只适用于维护者，不改变普通用户通过 npm 安装插件的流程。创建 tag Release 前，请在仓库
+Secrets 中配置 `NPM_TOKEN`。发布流水线会先校验 tag 与 package version 一致、产出 tarball，再发布
+npm 包，创建或复用草稿 GitHub Release；随后从 npm 与精确的 Release asset 分别进行隔离安装 smoke。
+只有两条安装验证都通过，草稿 Release 才会公开。
+
+smoke 会检查插件入口、DSH bundle patch、doctor CLI 和 viewer 资源。`GH_TOKEN` 由 GitHub Actions
+提供，仅用于创建、下载和公开 GitHub Release；无需人工配置。
+
+无需网络即可用同一个本地 tarball 模拟两个安装渠道：
+
+```bash
+npm pack --pack-destination dist
+npm run test:release-install -- --version <package-version> --npm-tarball dist/<package-tarball>.tgz --github-tarball dist/<package-tarball>.tgz
+```
+
 #### 方式 3：直接集成到代码
 
 ```javascript

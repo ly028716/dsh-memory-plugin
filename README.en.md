@@ -90,6 +90,24 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
 ```
 
+#### Release maintainers: post-release installation verification
+
+This section is for maintainers only and does not change the normal npm installation path for users.
+Before creating a tag Release, configure the `NPM_TOKEN` repository secret. The release pipeline first
+checks that the tag and package version match, produces a tarball, publishes to npm, and creates or reuses
+a draft GitHub Release. It then runs isolated installation smoke tests from npm and from the exact Release
+asset; the Release becomes public only after both checks pass.
+
+The smoke test checks the plugin entry point, DSH bundle patch, doctor CLI, and viewer assets. `GH_TOKEN`
+is supplied by GitHub Actions and is used only to create, download, and publish the GitHub Release; no manual configuration is required.
+
+To simulate both installation channels locally without network access, use the same tarball for each:
+
+```bash
+npm pack --pack-destination dist
+npm run test:release-install -- --version <package-version> --npm-tarball dist/<package-tarball>.tgz --github-tarball dist/<package-tarball>.tgz
+```
+
 #### Option 3: Direct Code Integration
 
 ```javascript
