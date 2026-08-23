@@ -68,6 +68,8 @@ test('publishes optional DSH client metadata and package export', () => {
   ]));
   expect(packageJson.files).toEqual(expect.arrayContaining(['client.js']));
   expect(packageJson.main).toBe('index.js');
+  expect(packageJson.peerDependencies.react).toBe('>=18 <20');
+  expect(packageJson.peerDependenciesMeta.react).toEqual({ optional: true });
 });
 
 test('client module can be required without optional Web runtime packages', () => {
@@ -229,4 +231,5 @@ test('registered disposer is safe to invoke', () => {
 test('package verification installs with peers omitted', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'test-package.js'), 'utf8');
   expect(source).toMatch(/runNpm\(\['install',[^\]]*'--omit=peer'/);
+  expect(source).toMatch(/runNpm\(\['install',[^\]]*'--offline'/);
 });
