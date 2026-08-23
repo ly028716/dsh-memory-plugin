@@ -22,6 +22,7 @@ const { registerMemorySettings, pickSettings } = require('./memory-settings');
 
 module.exports = {
   name: 'memory',
+  inject: ['systemPrompt', 'tools', 'settings'],
   
   /**
    * Apply the memory plugin to the DSH context
