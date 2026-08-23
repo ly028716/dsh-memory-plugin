@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
+function readWorkflow(workflowPath) {
+  return fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
+}
+
 describe('release CI configuration', () => {
   test('should define a reproducible package verification script', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
@@ -51,7 +55,7 @@ describe('release CI configuration', () => {
     expect(packageJson.scripts['test:release-install']).toBe('node test-release-install.js');
 
     const installVerifier = fs.readFileSync(path.join(rootDir, 'test-release-install.js'), 'utf8');
-    const workflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'release.yml'), 'utf8');
+    const workflow = readWorkflow(path.join(rootDir, '.github', 'workflows', 'release.yml'));
 
     expect(installVerifier).toContain('--github-tarball');
     expect(installVerifier).toContain('npm_config_registry');
@@ -86,7 +90,7 @@ describe('release CI configuration', () => {
   });
 
   test('should isolate release publishing and installation verification with least-privilege jobs', () => {
-    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const workflow = readWorkflow(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'));
     const jobBlock = (name) => {
       const start = workflow.indexOf(`  ${name}:\n`);
       expect(start).toBeGreaterThanOrEqual(0);
@@ -148,7 +152,7 @@ describe('release CI configuration', () => {
   });
 
   test('should preflight the release tag, pin actions, and safely resume draft releases', () => {
-    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const workflow = readWorkflow(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'));
     const jobBlock = (name) => {
       const start = workflow.indexOf(`  ${name}:\n`);
       expect(start).toBeGreaterThanOrEqual(0);
@@ -195,7 +199,7 @@ describe('release CI configuration', () => {
   });
 
   test('should make npm publication retry-safe for the exact release version', () => {
-    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const workflow = readWorkflow(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'));
     const start = workflow.indexOf('  publish-npm:\n');
     expect(start).toBeGreaterThanOrEqual(0);
     const end = workflow.indexOf('\n  create-draft-release:\n', start);
@@ -233,7 +237,7 @@ describe('release CI configuration', () => {
   });
 
   test('should verify and publish package artifacts on version tags', () => {
-    const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    const workflow = readWorkflow(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'));
 
     expect(workflow).toContain('tags:');
     expect(workflow).toContain('npm run test:package');
