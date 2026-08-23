@@ -90,16 +90,59 @@ function commandInvocation(command, args) {
 }
 
 function terminatePidTree(pid) {
-  if (!pid) return;
+  if (!pid) return { requested: false, status: null };
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    return {
+      requested: true,
+      status: result.status,
+      error: result.error,
+      output: formatOutput(result)
+    };
   } else {
     try {
       process.kill(pid, 'SIGTERM');
+      return { requested: true, status: 0 };
     } catch (error) {
-      if (error.code !== 'ESRCH') throw error;
+      if (error.code === 'ESRCH') return { requested: true, status: 0, alreadyExited: true };
+      return { requested: true, status: null, error };
     }
   }
+}
+
+function isProcessAlive(pid) {
+  if (!pid) return false;
+  if (process.platform === 'win32') {
+    const result = spawnSync('tasklist', ['/FI', `PID eq ${pid}`, '/NH'], { encoding: 'utf8' });
+    return result.status === 0 && new RegExp(`\\b${String(pid)}\\b`).test(result.stdout || '');
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code !== 'ESRCH';
+  }
+}
+
+function waitForProcessExit(pid, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve) => {
+    const poll = () => {
+      if (!isProcessAlive(pid)) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+      setTimeout(poll, 50);
+    };
+    poll();
+  });
 }
 
 function runDsh(command, args, env) {
@@ -217,7 +260,18 @@ function resolveCommandPath(command) {
   return String(lookup.stdout || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean) || null;
 }
 
-function findDshPackageRoot(command) {
+function readDshPackageManifest(packageRoot) {
+  const manifestPath = path.join(packageRoot, 'package.json');
+  if (!fs.existsSync(manifestPath)) return null;
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    return manifest && typeof manifest.version === 'string' ? manifest : null;
+  } catch {
+    return null;
+  }
+}
+
+function findDshPackageRoot(command, expectedVersion) {
   const commandPath = resolveCommandPath(command);
   const candidates = [
     process.env.DSH_PACKAGE_ROOT,
@@ -227,7 +281,26 @@ function findDshPackageRoot(command) {
     process.env.PREFIX && path.join(process.env.PREFIX, 'lib', 'node_modules', '@deepseek-ai', 'dsh')
   ].filter(Boolean);
 
-  return candidates.find((candidate) => fs.existsSync(path.join(candidate, 'package.json'))) || null;
+  const explicit = process.env.DSH_PACKAGE_ROOT;
+  if (explicit) {
+    const manifest = readDshPackageManifest(explicit);
+    if (!manifest) throw new Error(`host probe unavailable: DSH_PACKAGE_ROOT has no readable package.json: ${explicit}`);
+    if (manifest.version !== expectedVersion) {
+      throw new Error(`host probe unavailable: DSH_PACKAGE_ROOT version ${manifest.version} does not match CLI ${expectedVersion}`);
+    }
+    return { root: explicit, version: manifest.version };
+  }
+
+  const existing = candidates
+    .map((candidate) => ({ root: candidate, manifest: readDshPackageManifest(candidate) }))
+    .filter((candidate) => candidate.manifest);
+  const matching = existing.find((candidate) => candidate.manifest.version === expectedVersion);
+  if (matching) return { root: matching.root, version: matching.manifest.version };
+  if (existing.length > 0) {
+    const versions = existing.map((candidate) => `${candidate.root}=${candidate.manifest.version}`).join(', ');
+    throw new Error(`host probe unavailable: no DSH package matches CLI ${expectedVersion} (${versions})`);
+  }
+  return null;
 }
 
 async function importDshPackage(dshRoot, packageName) {
@@ -240,32 +313,40 @@ async function importDshPackage(dshRoot, packageName) {
   return import(require('url').pathToFileURL(modulePath).href);
 }
 
-async function runHostProbe({ installedRoot, dshCommand, dshVersion }) {
-  const dshRoot = findDshPackageRoot(dshCommand);
-  if (!dshRoot) throw new Error('host probe unavailable: DSH package root could not be resolved');
+async function findProfileBootModule(dshRoot) {
+  const libRoot = path.join(dshRoot, 'lib');
+  const candidates = fs.readdirSync(libRoot)
+    .filter((entry) => /^profile-boot-.*\.js$/.test(entry))
+    .sort();
+  if (candidates.length === 0) throw new Error(`host probe unavailable: no profile-boot-*.js in ${libRoot}`);
+  const modulePath = path.join(libRoot, candidates[0]);
+  const module = await import(require('url').pathToFileURL(modulePath).href);
+  if (typeof module.runProfile !== 'function') {
+    throw new Error(`host probe unavailable: ${modulePath} does not export runProfile`);
+  }
+  return module;
+}
 
-  let cordis;
-  let promptModule;
-  let toolsModule;
-  let settingsModule;
+function removeProbeRoot(probeRoot) {
+  fs.rmSync(probeRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  if (fs.existsSync(probeRoot)) throw new Error(`probe root was not removed: ${probeRoot}`);
+}
+
+async function runHostProbe({ installedRoot, dshCommand, dshHome, profileName, dshVersion }) {
+  const dshPackage = findDshPackageRoot(dshCommand, dshVersion);
+  if (!dshPackage) throw new Error('host probe unavailable: DSH package root could not be resolved');
+
+  let appBoot;
+  let profileBoot;
   try {
-    [cordis, promptModule, toolsModule, settingsModule] = await Promise.all([
-      importDshPackage(dshRoot, '@deepseek-ai/cordis'),
-      importDshPackage(dshRoot, '@deepseek-ai/dsh-system-prompt'),
-      importDshPackage(dshRoot, '@deepseek-ai/dsh-tools'),
-      importDshPackage(dshRoot, '@deepseek-ai/dsh-settings')
-    ]);
+    appBoot = await importDshPackage(dshPackage.root, '@deepseek-ai/dsh-app-boot');
+    profileBoot = await findProfileBootModule(dshPackage.root);
   } catch (error) {
     if (error.message.startsWith('host probe unavailable:')) throw error;
-    throw new Error(`host probe unavailable: failed to load DSH prompt/tool services: ${error.message}`);
+    throw new Error(`host probe unavailable: failed to load DSH profile boot API: ${error.message}`);
   }
-
-  const Context = cordis.Context;
-  const SystemPrompt = promptModule.SystemPrompt;
-  const ToolRuntime = toolsModule.ToolRuntime;
-  const SettingsProvider = settingsModule.SettingsProvider;
-  if (typeof Context !== 'function' || typeof SystemPrompt !== 'function' || typeof ToolRuntime !== 'function' || typeof SettingsProvider !== 'function') {
-    throw new Error('host probe unavailable: DSH 0.1.1-rc.2 prompt/tool/settings services are not exported');
+  if (typeof appBoot.loadLayeredEnv !== 'function') {
+    throw new Error('host probe unavailable: @deepseek-ai/dsh-app-boot does not export loadLayeredEnv');
   }
 
   let plugin;
@@ -279,28 +360,23 @@ async function runHostProbe({ installedRoot, dshCommand, dshVersion }) {
   }
 
   const probeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-memory-host-probe-'));
-  const ctx = new Context();
+  const previousCwd = process.cwd();
+  const previousDshHome = process.env.DSH_HOME;
+  let booted;
+  let result;
+  let operationError;
   try {
-    await ctx.plugin(SystemPrompt);
-    await ctx.plugin(ToolRuntime);
-    class ProbeSettingsProvider extends SettingsProvider {
-      async load() {
-        return {};
-      }
-
-      async persist() {
-        return undefined;
-      }
-    }
-    await ctx.plugin(ProbeSettingsProvider);
-    const hostPlugin = {
-      ...plugin,
-      inject: ['systemPrompt', 'tools', 'settings']
-    };
-    await ctx.plugin(hostPlugin, {
-      storagePath: path.join(probeRoot, 'memory.json'),
-      allowClearMemory: false
+    process.chdir(probeRoot);
+    process.env.DSH_HOME = dshHome;
+    const environment = appBoot.loadLayeredEnv('dsh');
+    booted = await profileBoot.runProfile({
+      environment,
+      profile: profileName,
+      patchFiles: [],
+      args: []
     });
+    const ctx = booted && booted.ctx;
+    if (!ctx) throw new Error('host probe unavailable: runProfile returned no context');
 
     const systemPrompt = ctx.get('systemPrompt');
     const toolRuntime = ctx.get('tools');
@@ -332,22 +408,46 @@ async function runHostProbe({ installedRoot, dshCommand, dshVersion }) {
 
     await memory.setPreference('apiKey', 'sk-e2e-secret');
     const assembly = await systemPrompt.assemble();
-    const promptText = typeof promptModule.renderContextSnapshot === 'function'
-      ? promptModule.renderContextSnapshot(assembly)
-      : assembly.contexts.map((context) => context.text).join('\n\n');
+    const promptText = assembly.contexts.map((context) => context.text).join('\n\n');
     const schema = toolRuntime.schemas().find((entry) => entry.name === 'memory');
     if (!schema) throw new Error('DSH host tool schemas did not include memory');
     const actionEnum = schema.parameters?.properties?.action?.enum || [];
-    return {
+    result = {
       dshVersion,
       promptText,
       toolNames: toolRuntime.schemas().map((entry) => entry.name),
-      toolActions: actionEnum
+      toolActions: actionEnum,
+      source: 'profile-boot',
+      packageVersion: dshPackage.version
     };
+  } catch (error) {
+    operationError = error;
   } finally {
-    await ctx.fiber.dispose();
-    fs.rmSync(probeRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    try {
+      if (booted?.shutdown && typeof booted.shutdown.shutdown === 'function') {
+        await booted.shutdown.shutdown(0);
+      }
+    } catch (shutdownError) {
+      if (!operationError) operationError = shutdownError;
+      else console.error(`DSH host probe shutdown warning: ${shutdownError.message}`);
+    }
+    try {
+      process.chdir(previousCwd);
+    } catch (cwdError) {
+      if (!operationError) operationError = cwdError;
+      else console.error(`DSH host probe cwd restore warning: ${cwdError.message}`);
+    }
+    if (previousDshHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previousDshHome;
+    try {
+      removeProbeRoot(probeRoot);
+    } catch (cleanupError) {
+      if (!operationError) operationError = cleanupError;
+      else console.error(`DSH host probe cleanup warning: ${cleanupError.message}`);
+    }
   }
+  if (operationError) throw operationError;
+  return result;
 }
 
 function assertSuccess(step, result) {
@@ -360,14 +460,11 @@ function assertSuccess(step, result) {
   throw new Error(`${step} failed with exit code ${result.status}${details ? `:\n${details}` : ''}`);
 }
 
-function terminateProcess(child) {
-  if (child.exitCode !== null) return;
-
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  } else {
-    child.kill('SIGTERM');
-  }
+async function terminateProcess(child) {
+  if (child.exitCode !== null) return { requested: false, confirmed: true, alreadyExited: true };
+  const request = terminatePidTree(child.pid);
+  const confirmed = await waitForProcessExit(child.pid);
+  return { ...request, confirmed };
 }
 
 function bootAndStop(command, args, env) {
@@ -380,6 +477,10 @@ function bootAndStop(command, args, env) {
     });
     let output = '';
     let settled = false;
+    let stopRequested = false;
+    let observedExit = null;
+    let startupError = null;
+    const startupErrorPattern = /(?:plugin tree failed|did not activate|uncaught|unhandled rejection|dsh:\s+.*(?:failed|error)|ERR_[A-Z_]+)/i;
 
     const finish = (callback) => {
       if (settled) return;
@@ -388,23 +489,55 @@ function bootAndStop(command, args, env) {
       callback();
     };
 
-    child.stdout.on('data', (chunk) => { output += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { output += chunk.toString(); });
-    child.on('error', (error) => finish(() => reject(error)));
-    child.on('exit', (code) => {
+    const captureOutput = (chunk) => {
+      output += chunk.toString();
+      if (startupError === null && startupErrorPattern.test(output)) startupError = output.trim();
+    };
+    child.stdout.on('data', captureOutput);
+    child.stderr.on('data', captureOutput);
+    child.on('error', (error) => {
+      if (stopRequested) return;
+      finish(() => reject(error));
+    });
+    child.on('exit', (code, signal) => {
+      if (stopRequested) {
+        observedExit = { code, signal };
+        return;
+      }
       finish(() => {
-        if (code !== null && code !== 0) {
-          reject(new Error(`DSH profile boot failed with exit code ${code}:\n${output.trim()}`));
+        if (code !== 0) {
+          reject(new Error(`DSH profile boot failed with exit code ${code ?? 'null'}${signal ? ` (${signal})` : ''}:\n${output.trim()}`));
           return;
         }
-        resolve({ code, output });
+        if (startupError) {
+          reject(new Error(`DSH profile boot reported a startup error:\n${startupError}`));
+          return;
+        }
+        resolve({ code, signal, output, exited: true, exitConfirmed: true });
       });
     });
 
     const timer = setTimeout(() => {
       if (child.exitCode !== null) return;
-      terminateProcess(child);
-      finish(() => resolve({ code: child.exitCode, output, timedOut: true }));
+      stopRequested = true;
+      terminateProcess(child).then((termination) => {
+        if (!termination.confirmed) {
+          finish(() => reject(new Error(`DSH profile boot process tree did not terminate after the observation window:\n${output.trim()}`)));
+          return;
+        }
+        if (startupError) {
+          finish(() => reject(new Error(`DSH profile boot reported a startup error:\n${startupError}`)));
+          return;
+        }
+        finish(() => resolve({
+          code: observedExit?.code ?? child.exitCode,
+          signal: observedExit?.signal,
+          output,
+          timedOut: true,
+          terminationConfirmed: true,
+          terminated: true
+        }));
+      }).catch((error) => finish(() => reject(error)));
     }, bootWaitMs);
   });
 }
@@ -518,6 +651,8 @@ async function runE2E() {
     const hostProbe = await runHostProbe({
       installedRoot,
       dshCommand: dsh.command,
+      dshHome,
+      profileName,
       dshVersion: formatVersion(dsh.version)
     });
     if (hostProbe.source !== 'profile-boot') {
