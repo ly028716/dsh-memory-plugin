@@ -4,6 +4,8 @@ const path = require('path');
 const projectRoot = path.resolve(__dirname, '..');
 const PINNED_COMMIT = 'fbaa0216e51c15d111d1e859e2cb4af50c033e0b';
 const PINNED_SPEC = `github:ly028716/dsh-memory-plugin#${PINNED_COMMIT}`;
+const PINNED_VERIFICATION_COMMAND = `DSH_PINNED_COMMIT=${PINNED_COMMIT} npm run test:pinned-commit`;
+const COMMIT_TEMPLATE = '<40-character-commit-sha>';
 
 function readProjectFile(...segments) {
   return fs.readFileSync(path.join(projectRoot, ...segments), 'utf8');
@@ -35,7 +37,7 @@ describe('community registry submission contract', () => {
     expect(entry.evidence.validation).toEqual(expect.arrayContaining([
       'npm test -- --runInBand',
       'npm run check',
-      'npm run test:pinned-commit',
+      PINNED_VERIFICATION_COMMAND,
       'npm run test:package'
     ]));
   });
@@ -56,12 +58,19 @@ describe('community registry submission contract', () => {
   });
 
   test('includes the same pinned commit example in install documents', () => {
-    const documents = ['README.md', 'README.en.md', 'INSTALL.md', 'MANUAL-INSTALL.md'];
+    const documents = [
+      'README.md',
+      'README.en.md',
+      'INSTALL.md',
+      'MANUAL-INSTALL.md',
+      'COMMUNITY-SUBMISSION.md'
+    ];
     const expected = `dsh plugin --profile web add ${PINNED_SPEC}`;
 
     for (const document of documents) {
       const content = readProjectFile(document);
       expect(content).toContain('dsh plugin --profile web add');
+      expect(content).toContain(COMMIT_TEMPLATE);
       expect(content).toContain(PINNED_SPEC);
       expect(content).toContain(expected);
     }
@@ -71,8 +80,12 @@ describe('community registry submission contract', () => {
     expect(PINNED_COMMIT).toMatch(/^[0-9a-f]{40}$/);
 
     const entry = JSON.parse(readProjectFile('community', 'registry-entry.json'));
+    const submission = readProjectFile('COMMUNITY-SUBMISSION.md');
+
     expect(entry.install.spec).toBe(PINNED_SPEC);
     expect(entry.install.command).toBe(`dsh plugin --profile web add ${PINNED_SPEC}`);
-    expect(readProjectFile('COMMUNITY-SUBMISSION.md')).toContain(PINNED_SPEC);
+    expect(submission).toContain(PINNED_SPEC);
+    expect(submission).toContain(PINNED_VERIFICATION_COMMAND);
+    expect(entry.evidence.validation).toContain(PINNED_VERIFICATION_COMMAND);
   });
 });

@@ -60,7 +60,7 @@ dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d11
 ```bash
 npm test -- --runInBand
 npm run check
-npm run test:pinned-commit
+DSH_PINNED_COMMIT=fbaa0216e51c15d111d1e859e2cb4af50c033e0b npm run test:pinned-commit
 npm run test:package
 git diff --check
 ```
