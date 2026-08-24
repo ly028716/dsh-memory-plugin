@@ -99,8 +99,16 @@ module.exports = {
 
       // 查看当前进程的推荐效果指标（不持久化）
       const metrics = ctx.memory.getRecommendationMetrics();
-      console.log('Context match rate:', metrics.contextMatchRate);
-      console.log('Fallback rate:', metrics.fallbackRate);
+      console.log({
+        requests: metrics.requests,
+        availableRequests: metrics.availableRequests,
+        contextualRequests: metrics.contextualRequests,
+        contextMatches: metrics.contextMatches,
+        fallbackRequests: metrics.fallbackRequests,
+        suggestions: metrics.suggestions,
+        contextMatchRate: metrics.contextMatchRate,
+        fallbackRate: metrics.fallbackRate
+      });
     }
   }
 };
@@ -199,7 +207,24 @@ async function restoreMemory(ctx, backupFile) {
 }
 ```
 
-`ctx.memory.getRecommendationMetrics()` 返回当前进程内的推荐请求、上下文命中和回退聚合指标。`contextMatchRate` 与 `fallbackRate` 在没有上下文请求时为 `null`；它们不表示用户采纳率，也不会记录 prompt、项目路径、推荐文本或上传数据。
+`ctx.memory.getRecommendationMetrics()` 返回当前进程内的推荐效果指标。前六项是计数，后两项是 API 返回的 0–1 比例值（例如 `0.667`），不是百分数字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `requests` | 调用推荐 API 的请求数。 |
+| `availableRequests` | 推荐功能开启并返回可用结果的请求数。 |
+| `contextualRequests` | 带有非空上下文的请求数。 |
+| `contextMatches` | 至少命中一个上下文相关命令或项目的请求数。 |
+| `fallbackRequests` | 带上下文但没有上下文命中、使用通用候选回退的请求数。 |
+| `suggestions` | 返回的 suggestion 分组数累计值，不是各分组 `items` 中推荐项总数。 |
+| `contextMatchRate` | API 返回的上下文命中 0–1 比例值，即 `contextMatches / contextualRequests`；设置页四舍五入显示为 `67%`（例如 API 返回 `0.667`）。 |
+| `fallbackRate` | API 返回的回退 0–1 比例值，即 `fallbackRequests / contextualRequests`；设置页四舍五入显示为 `67%`（例如 API 返回 `0.667`）。 |
+
+两个比例的分母都是 `contextualRequests`。设置页将 API 比例值四舍五入为整百分比；没有上下文请求、暂无分母时 API 返回 `null`，设置页显示“暂无数据”。
+
+`patternRecognitionThreshold` 是推荐计算配置，不属于设置页展示的八项效果指标。
+
+如果使用 DSH Web client，`Settings > Plugins > Memory` 设置卡会只读显示这八项指标；它们仅是本地进程内运行时统计，不新增持久化、网络上报或用户内容采集。指标不表示用户点击或采纳率。推荐指标及设置卡不会记录项目路径、原始内容或跨会话用户画像；这不改变 `trackProjectContext` 和显式 `addProject()` 等现有项目上下文行为。
 
 ### 7. 隐私控制
 

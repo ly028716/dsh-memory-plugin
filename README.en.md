@@ -205,14 +205,38 @@ In a compatible DSH profile, the plugin connects memory to the Agent:
 
 Open `Settings > Plugins > Memory` in DSH to change six live settings: `trackToolCalls`, `trackPreferences`, `trackProjectContext`, `trackSessionHistory`, `enableRecommendations`, and `allowClearMemory`. Web settings dependencies are optional: with the DSH Web client the card is shown; with CLI/Host only, the prompt, tool, and `ctx.memory` API remain available.
 
-The card labels each automatic collection toggle as enabled or paused and shows the overall collection state plus the number of enabled collectors. When the host provides current-session recommendation metrics, it also shows request count, contextual hit rate, and fallback rate. These metrics stay in process memory and are not written to the memory file.
+The card labels each automatic collection toggle as enabled or paused and shows the overall collection state plus the number of enabled collectors. When the host provides current-session recommendation metrics, it displays these eight fields as read-only metrics:
+
+| Field | Meaning |
+| --- | --- |
+| `requests` | Number of recommendation API requests. |
+| `availableRequests` | Requests for which recommendations were enabled and an available result was returned. |
+| `contextualRequests` | Requests with non-empty context. |
+| `contextMatches` | Requests matching at least one context-related command or project. |
+| `fallbackRequests` | Contextual requests with no context match that used generic fallback candidates. |
+| `suggestions` | Cumulative number of returned suggestion groups, not the total number of recommendation items inside their `items` arrays. |
+| `contextMatchRate` | A 0–1 context-match ratio returned by the API: `contextMatches / contextualRequests` (for example, `0.667`); the settings card rounds it to `67%`. |
+| `fallbackRate` | A 0–1 fallback ratio returned by the API: `fallbackRequests / contextualRequests` (for example, `0.667`); the settings card rounds it to `67%`. |
+
+The first six fields are counts; the last two are 0–1 ratio values returned by the API, not percentage-valued API fields. Both ratios use `contextualRequests` as the denominator. The settings card rounds a ratio to a whole percentage (for example, `0.667` becomes `67%`). When there are no contextual requests and therefore no denominator, the API returns `null` and the settings card shows `暂无数据` (no data). These fields are local, in-process runtime statistics only: they add no persistence, network reporting, or collection of user content.
+
+`patternRecognitionThreshold` is a recommendation-calculation setting, not one of the eight effectiveness metrics shown in the settings card.
 
 ```javascript
 const metrics = ctx.memory.getRecommendationMetrics();
-console.log(metrics.contextMatchRate, metrics.fallbackRate);
+console.log({
+  requests: metrics.requests,
+  availableRequests: metrics.availableRequests,
+  contextualRequests: metrics.contextualRequests,
+  contextMatches: metrics.contextMatches,
+  fallbackRequests: metrics.fallbackRequests,
+  suggestions: metrics.suggestions,
+  contextMatchRate: metrics.contextMatchRate,
+  fallbackRate: metrics.fallbackRate
+});
 ```
 
-The metrics describe recommendation coverage and contextual matching, not user click-through or acceptance. The plugin does not record prompts, project paths, recommendation text, or upload telemetry.
+The metrics describe recommendation coverage, contextual matching, and fallback behavior, not user click-through or acceptance. The recommendation metrics and settings card do not record project paths, raw content, or cross-session user profiles, and do not upload telemetry. This does not change the existing project-context behavior of `trackProjectContext` or explicit `addProject()` calls.
 
 ## ⚙️ Configuration Options
 

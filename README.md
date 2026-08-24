@@ -203,14 +203,38 @@ await ctx.memory.applyRetention();
 
 打开 DSH 的 `Settings > Plugins > Memory` 可实时调整六个设置：`trackToolCalls`、`trackPreferences`、`trackProjectContext`、`trackSessionHistory`、`enableRecommendations`、`allowClearMemory`。Web 设置依赖是可选的：安装了 DSH Web client 时显示设置卡；只有 CLI/Host 时，prompt、tool 和 `ctx.memory` API 仍可用。
 
-设置卡会把四个自动采集开关显示为“已开启/已暂停”，并显示自动采集总状态和已开启项目数。若宿主提供当前会话的推荐指标，还会显示推荐请求数、上下文命中率和回退率；这些指标只在进程内聚合，不写入记忆文件。
+设置卡会把四个自动采集开关显示为“已开启/已暂停”，并显示自动采集总状态和已开启项目数。若宿主提供当前会话的推荐指标，还会以只读方式显示以下八项：
+
+| 字段 | 含义 |
+| --- | --- |
+| `requests` | 调用推荐 API 的请求数。 |
+| `availableRequests` | 推荐功能开启并返回可用结果的请求数。 |
+| `contextualRequests` | 带有非空上下文的请求数。 |
+| `contextMatches` | 至少命中一个上下文相关命令或项目的请求数。 |
+| `fallbackRequests` | 带上下文但没有上下文命中、使用通用候选回退的请求数。 |
+| `suggestions` | 返回的 suggestion 分组数累计值，不是各分组 `items` 中推荐项总数。 |
+| `contextMatchRate` | API 返回的上下文命中 0–1 比例值，即 `contextMatches / contextualRequests`（例如 `0.667`）；设置页四舍五入显示为 `67%`。 |
+| `fallbackRate` | API 返回的回退 0–1 比例值，即 `fallbackRequests / contextualRequests`（例如 `0.667`）；设置页四舍五入显示为 `67%`。 |
+
+前六项是计数，后两项是 API 返回的 0–1 比例值，不是百分数字段；两个比例都以 `contextualRequests` 为分母。设置页将比例值四舍五入为整百分比（例如 `0.667` 显示为 `67%`）。暂无上下文请求、没有可用分母时，API 返回 `null`，设置页显示“暂无数据”。这些指标只反映当前进程的本地运行时统计，不新增持久化、网络上报或用户内容采集。
+
+`patternRecognitionThreshold` 是推荐计算配置，不属于设置页展示的八项效果指标。
 
 ```javascript
 const metrics = ctx.memory.getRecommendationMetrics();
-console.log(metrics.contextMatchRate, metrics.fallbackRate);
+console.log({
+  requests: metrics.requests,
+  availableRequests: metrics.availableRequests,
+  contextualRequests: metrics.contextualRequests,
+  contextMatches: metrics.contextMatches,
+  fallbackRequests: metrics.fallbackRequests,
+  suggestions: metrics.suggestions,
+  contextMatchRate: metrics.contextMatchRate,
+  fallbackRate: metrics.fallbackRate
+});
 ```
 
-指标表示推荐覆盖和上下文命中情况，不代表用户点击或采纳率；插件不会记录 prompt、项目路径、推荐文本或上传遥测。
+指标表示推荐覆盖、上下文命中和回退情况，不代表用户点击或采纳率。推荐指标及设置卡不会记录项目路径、原始内容或跨会话用户画像，也不会上传遥测；这不改变 `trackProjectContext` 和显式 `addProject()` 等现有项目上下文行为。
 
 ## ⚙️ 配置选项
 

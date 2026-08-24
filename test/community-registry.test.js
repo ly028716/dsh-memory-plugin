@@ -9,7 +9,7 @@ const PINNED_VERIFY_POWERSHELL = `$env:DSH_PINNED_COMMIT = '${PINNED_COMMIT}'\nn
 const COMMIT_TEMPLATE = '<40-character-commit-sha>';
 
 function readProjectFile(...segments) {
-  return fs.readFileSync(path.join(projectRoot, ...segments), 'utf8');
+  return fs.readFileSync(path.join(projectRoot, ...segments), 'utf8').replace(/\r\n/g, '\n');
 }
 
 describe('community registry submission contract', () => {

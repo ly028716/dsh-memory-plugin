@@ -317,9 +317,14 @@ test('card renders collection status and optional recommendation metrics', () =>
   const ctx = createContext();
   ctx.binding.getStatus = jest.fn(() => ({
     recommendations: {
-      requests: 4,
-      contextMatchRate: 0.75,
-      fallbackRate: 0.25
+      requests: 8,
+      availableRequests: 7,
+      contextualRequests: 6,
+      contextMatches: 4,
+      fallbackRequests: 2,
+      suggestions: 12,
+      contextMatchRate: 2 / 3,
+      fallbackRate: 1 / 3
     }
   }));
   apply(ctx);
@@ -327,17 +332,56 @@ test('card renders collection status and optional recommendation metrics', () =>
   const [definition, Card] = ctx.slots.register.mock.calls[0];
   const element = Card(definition.inject());
   const collectionStatus = [];
+  const recommendationMetrics = [];
   const visit = (node) => {
     if (!node || typeof node !== 'object') return;
     if (node.props?.['data-dsh-memory'] === 'collection-status') collectionStatus.push(node);
+    if (node.props?.['data-dsh-memory'] === 'recommendation-metrics') recommendationMetrics.push(node);
     for (const child of node.children || []) visit(child);
   };
   visit(element);
 
   expect(collectionStatus).toHaveLength(1);
   expect(JSON.stringify(collectionStatus[0])).toContain('自动采集：已开启');
-  expect(JSON.stringify(element)).toContain('推荐请求：4');
-  expect(JSON.stringify(element)).toContain('上下文命中率：75%');
+  expect(recommendationMetrics).toHaveLength(1);
+  const metricsText = JSON.stringify(recommendationMetrics[0]);
+  expect(metricsText).toContain('推荐请求：8');
+  expect(metricsText).toContain('可用请求：7');
+  expect(metricsText).toContain('上下文请求：6');
+  expect(metricsText).toContain('上下文命中：4');
+  expect(metricsText).toContain('回退请求：2');
+  expect(metricsText).toContain('建议数：12');
+  expect(metricsText).toContain('上下文命中率：67%');
+  expect(metricsText).toContain('回退率：33%');
+});
+
+test('card renders a safe empty state for missing recommendation metrics', () => {
+  mockReact();
+  const { apply } = loadClient();
+  const ctx = createContext();
+  ctx.binding.getStatus = jest.fn(() => ({
+    recommendations: { requests: 1, contextMatchRate: null, fallbackRate: null }
+  }));
+  apply(ctx);
+
+  const [definition, Card] = ctx.slots.register.mock.calls[0];
+  let element;
+  expect(() => {
+    element = Card(definition.inject());
+  }).not.toThrow();
+
+  const recommendationMetrics = [];
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.props?.['data-dsh-memory'] === 'recommendation-metrics') recommendationMetrics.push(node);
+    for (const child of node.children || []) visit(child);
+  };
+  visit(element);
+
+  expect(recommendationMetrics).toHaveLength(1);
+  const metricsText = JSON.stringify(recommendationMetrics[0]);
+  expect(metricsText).toContain('上下文命中率：暂无数据');
+  expect(metricsText).toContain('回退率：暂无数据');
 });
 
 test('registered disposer is safe to invoke', () => {

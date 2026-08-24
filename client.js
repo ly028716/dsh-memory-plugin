@@ -181,6 +181,11 @@
           'div',
           { 'data-dsh-memory': 'recommendation-metrics' },
           `推荐请求：${recommendations.requests ?? 0}`,
+          `可用请求：${recommendations.availableRequests ?? 0}`,
+          `上下文请求：${recommendations.contextualRequests ?? 0}`,
+          `上下文命中：${recommendations.contextMatches ?? 0}`,
+          `回退请求：${recommendations.fallbackRequests ?? 0}`,
+          `建议数：${recommendations.suggestions ?? 0}`,
           `上下文命中率：${formatRate(recommendations.contextMatchRate)}`,
           `回退率：${formatRate(recommendations.fallbackRate)}`
         )
