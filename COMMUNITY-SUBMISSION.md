@@ -65,6 +65,14 @@ npm run test:package
 git diff --check
 ```
 
+上面的命令适用于 Bash；如果你在 Windows PowerShell 中执行，请使用下面的写法设置并清理临时环境变量：
+
+```powershell
+$env:DSH_PINNED_COMMIT = 'fbaa0216e51c15d111d1e859e2cb4af50c033e0b'
+npm run test:pinned-commit
+Remove-Item Env:DSH_PINNED_COMMIT
+```
+
 目录审核应以仓库中的 `package.json`、`cordis.patch.yml`、安装测试和 pinned commit 测试为证据。提交方不应把动态 star、未经验证的兼容性或 `verified` 状态写成事实。
 
 ## 安全与范围声明
