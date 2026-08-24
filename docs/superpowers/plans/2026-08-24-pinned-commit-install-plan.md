@@ -20,7 +20,7 @@
 在测试文件顶部增加：
 
 ```js
-const PINNED_COMMIT = 'fbaa0216e51c15d111d1e859e2cb4af50c033e0b';
+const PINNED_COMMIT = '6fce10ecf9cd796d46a7848aec7af07ff1ff0e18';
 const PINNED_SPEC = `github:ly028716/dsh-memory-plugin#${PINNED_COMMIT}`;
 ```
 
@@ -45,7 +45,7 @@ test('uses one executable 40-character pinned commit across registry documents',
 
 运行：`npm test -- --runInBand test/community-registry.test.js`
 
-预期：FAIL，失败原因是 `community/registry-entry.json` 和安装文档仍使用 `<40-character-commit-sha>` 占位符，而不是 `fbaa0216e51c15d111d1e859e2cb4af50c033e0b`。
+预期：FAIL，失败原因是 `community/registry-entry.json` 和安装文档仍使用 `<40-character-commit-sha>` 占位符，而不是 `6fce10ecf9cd796d46a7848aec7af07ff1ff0e18`。
 
 ### 任务 2：更新社区条目和安装文档
 
@@ -63,8 +63,8 @@ test('uses one executable 40-character pinned commit across registry documents',
 
 ```json
 {
-  "spec": "github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b",
-  "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b"
+  "spec": "github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18",
+  "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18"
 }
 ```
 
@@ -74,7 +74,7 @@ test('uses one executable 40-character pinned commit across registry documents',
 
 ```bash
 # GitHub pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18
 ```
 
 同时保留通用模板，并说明新提交发布后应替换为新的完整 40 位 SHA：

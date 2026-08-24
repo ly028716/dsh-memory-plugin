@@ -6,7 +6,7 @@
 
 ## 方案
 
-- 以当前已推送的完整 commit SHA `fbaa0216e51c15d111d1e859e2cb4af50c033e0b` 作为可执行示例。
+- 以当前已推送的完整 commit SHA `6fce10ecf9cd796d46a7848aec7af07ff1ff0e18` 作为可执行示例。
 - 在中文和英文安装文档、社区提交说明以及 `community/registry-entry.json` 中使用相同的 pinned spec。
 - 保留 `<40-character-commit-sha>` 模板，并明确要求后续维护者替换为完整 40 位十六进制 SHA。
 - 普通用户的 npm 安装方式保持不变；pinned commit 仅用于 CI、审计和可复现验证。

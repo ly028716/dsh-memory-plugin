@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..');
-const PINNED_COMMIT = 'fbaa0216e51c15d111d1e859e2cb4af50c033e0b';
+const PINNED_COMMIT = '6fce10ecf9cd796d46a7848aec7af07ff1ff0e18';
 const PINNED_SPEC = `github:ly028716/dsh-memory-plugin#${PINNED_COMMIT}`;
 const PINNED_VERIFY_BASH = `DSH_PINNED_COMMIT=${PINNED_COMMIT} npm run test:pinned-commit`;
 const PINNED_VERIFY_POWERSHELL = `$env:DSH_PINNED_COMMIT = '${PINNED_COMMIT}'\nnpm run test:pinned-commit\nRemove-Item Env:DSH_PINNED_COMMIT`;

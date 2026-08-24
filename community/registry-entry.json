@@ -32,8 +32,8 @@
   },
   "install": {
     "target": "github",
-    "spec": "github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b",
-    "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b"
+    "spec": "github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18",
+    "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18"
   },
   "alternateInstall": {
     "target": "npm",
@@ -48,8 +48,8 @@
     "validation": [
       "npm test -- --runInBand",
       "npm run check",
-      "DSH_PINNED_COMMIT=fbaa0216e51c15d111d1e859e2cb4af50c033e0b npm run test:pinned-commit",
-      "$env:DSH_PINNED_COMMIT = 'fbaa0216e51c15d111d1e859e2cb4af50c033e0b'\nnpm run test:pinned-commit\nRemove-Item Env:DSH_PINNED_COMMIT",
+      "DSH_PINNED_COMMIT=6fce10ecf9cd796d46a7848aec7af07ff1ff0e18 npm run test:pinned-commit",
+      "$env:DSH_PINNED_COMMIT = '6fce10ecf9cd796d46a7848aec7af07ff1ff0e18'\nnpm run test:pinned-commit\nRemove-Item Env:DSH_PINNED_COMMIT",
       "npm run test:package"
     ]
   },
