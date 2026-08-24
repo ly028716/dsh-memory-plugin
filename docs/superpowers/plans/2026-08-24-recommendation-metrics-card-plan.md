@@ -15,7 +15,7 @@
 **文件：**
 - 修改：`test/client.test.js:314-350`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 将现有设置卡测试的推荐指标扩展为 `requests: 8`、`availableRequests: 7`、`contextualRequests: 6`、`contextMatches: 4`、`fallbackRequests: 2`、`suggestions: 12`、`contextMatchRate: 2 / 3`、`fallbackRate: 1 / 3`，并断言渲染文本包含：
 
@@ -47,7 +47,7 @@ test('card renders a safe empty state for missing recommendation metrics', () =>
 });
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 运行：`npm test -- --runInBand test/client.test.js`
 
@@ -59,7 +59,7 @@ test('card renders a safe empty state for missing recommendation metrics', () =>
 - 修改：`client.js:179-187`
 - 测试：`test/client.test.js:314-380`
 
-- [ ] **步骤 1：编写最少实现代码**
+- [x] **步骤 1：编写最少实现代码**
 
 在 `data-dsh-memory="recommendation-metrics"` 容器中依次渲染：
 
@@ -76,13 +76,13 @@ test('card renders a safe empty state for missing recommendation metrics', () =>
 
 保留现有空状态 `当前会话暂无推荐指标`。
 
-- [ ] **步骤 2：运行目标测试验证通过**
+- [x] **步骤 2：运行目标测试验证通过**
 
 运行：`npm test -- --runInBand test/client.test.js`
 
 预期：该测试文件全部 PASS，空指标测试不抛异常。
 
-- [ ] **步骤 3：运行相关回归测试**
+- [x] **步骤 3：运行相关回归测试**
 
 运行：`npm test -- --runInBand test/client.test.js test/index.test.js test/dsh-integration.test.js`
 
@@ -95,15 +95,15 @@ test('card renders a safe empty state for missing recommendation metrics', () =>
 - 修改：`README.en.md:206-215`
 - 修改：`USAGE.md:202`
 
-- [ ] **步骤 1：更新中文文档**
+- [x] **步骤 1：更新中文文档**
 
 将 `getRecommendationMetrics()` 示例扩展为输出 `requests`、`availableRequests`、`contextualRequests`、`contextMatches`、`fallbackRequests`、`suggestions`、`contextMatchRate` 和 `fallbackRate`，并说明这些指标只反映当前进程内覆盖、命中和回退，不代表点击率或采纳率，也不写入记忆文件。
 
-- [ ] **步骤 2：同步英文 README 与 USAGE**
+- [x] **步骤 2：同步英文 README 与 USAGE**
 
 使用同一字段集合和隐私边界，保持现有 API 示例兼容。
 
-- [ ] **步骤 3：检查文档格式**
+- [x] **步骤 3：检查文档格式**
 
 运行：`git diff --check`
 
@@ -118,17 +118,22 @@ test('card renders a safe empty state for missing recommendation metrics', () =>
 - 验证：`README.en.md`
 - 验证：`USAGE.md`
 
-- [ ] **步骤 1：运行完整验证**
+- [x] **步骤 1：运行完整验证**
 
 依次运行：`npm test -- --runInBand`、`npm run check`、`npm run test:package`、`git diff --check`。预期 19 个测试套件、220 个以上测试全部通过，每条命令退出码为 0。
 
-- [ ] **步骤 2：检查变更范围**
+- [x] **步骤 2：检查变更范围**
 
 运行：`git status --short` 和 `git diff --stat`，确认只包含本计划的设置卡、测试、文档、计划和规格文件。
 
-- [ ] **步骤 3：提交实现**
+- [x] **步骤 3：提交实现**
 
 ```bash
 git add client.js test/client.test.js README.md README.en.md USAGE.md docs/superpowers/plans/2026-08-24-recommendation-metrics-card-plan.md
 git commit -m "feat: show complete recommendation metrics"
+
+## 完成记录
+
+- 已在 `6fce10e` 中完成设置卡完整八项推荐指标展示、null-safe 测试和中英文文档同步。
+- 验证通过：19 个测试套件、221 个测试，`npm run check`、`npm run test:package` 和 `git diff --check`。
 ```
