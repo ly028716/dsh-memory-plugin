@@ -48,6 +48,9 @@ CI、审计和复现环境：
 
 ```bash
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
+
+# 当前已推送的 pinned commit（CI/审计场景）
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b
 ```
 
 `<40-character-commit-sha>` 必须替换成完整 40 位 SHA；短 SHA、浮动分支或未固定的 GitHub spec 不属于 pinned commit 安装。

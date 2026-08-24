@@ -59,6 +59,9 @@ dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plug
 
 # 社区目录标准 spec：将占位符替换为完整 40 位 SHA
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
+
+# 当前已推送的 pinned commit（CI/审计场景）
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b
 ```
 
 GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应在 profile 目录中执行

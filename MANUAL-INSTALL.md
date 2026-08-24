@@ -29,6 +29,9 @@ doctor 默认只读检查；`--fix` 只把 DSH 共享 `profiles/node_modules` �
 ```bash
 # 将占位符替换为完整 40 位 SHA
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
+
+# 当前已推送的 pinned commit（CI/审计场景）
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b
 ```
 
 ### 方法 1：在 DSH 配置文件中引用（推荐）

@@ -32,8 +32,8 @@
   },
   "install": {
     "target": "github",
-    "spec": "github:ly028716/dsh-memory-plugin#<40-character-commit-sha>",
-    "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>"
+    "spec": "github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b",
+    "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b"
   },
   "alternateInstall": {
     "target": "npm",

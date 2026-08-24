@@ -93,6 +93,9 @@ dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plug
 
 # Community registry spec (replace the placeholder with a full 40-character SHA)
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
+
+# Current pushed pinned commit (CI/audit)
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#fbaa0216e51c15d111d1e859e2cb4af50c033e0b
 ```
 
 #### Release maintainers: post-release installation verification
