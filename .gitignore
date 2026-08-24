@@ -5,6 +5,8 @@ node_modules/
 *.json
 !package.json
 !package-lock.json
+!community/
+!community/*.json
 
 # Temporary files
 *.tmp

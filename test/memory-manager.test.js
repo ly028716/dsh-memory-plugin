@@ -335,6 +335,43 @@ describe('MemoryManager', () => {
       expect(recs.suggestions.length).toBeGreaterThan(0);
     });
 
+    test('tracks recommendation metrics for contextual matches and fallbacks', async () => {
+      storage.set('inputHabits.commonCommands', [
+        { command: 'npm run test', count: 5 },
+        { command: 'git push', count: 5 }
+      ]);
+      storage.set('projectContext.activeProjects', [
+        { name: 'Test Project', path: '/test', tags: ['node'] },
+        { name: 'Deploy Project', path: '/deploy', tags: ['ops'] }
+      ]);
+      await storage.save();
+
+      manager.getRecommendations('test');
+      manager.getRecommendations('docs');
+
+      expect(manager.getRecommendationMetrics()).toEqual(expect.objectContaining({
+        requests: 2,
+        availableRequests: 2,
+        contextualRequests: 2,
+        contextMatches: 1,
+        fallbackRequests: 1,
+        suggestions: expect.any(Number),
+        contextMatchRate: 0.5,
+        fallbackRate: 0.5,
+        patternRecognitionThreshold: config.patternRecognitionThreshold
+      }));
+    });
+
+    test('returns null rates without contextual requests and protects metric state', () => {
+      manager.getRecommendations();
+      const metrics = manager.getRecommendationMetrics();
+      metrics.requests = 999;
+
+      expect(metrics.contextMatchRate).toBeNull();
+      expect(metrics.fallbackRate).toBeNull();
+      expect(manager.getRecommendationMetrics().requests).toBe(1);
+    });
+
     test('should prioritize recommendations matching the requested context', async () => {
       storage.set('inputHabits.commonCommands', [
         { command: 'npm run test', count: 5 },
@@ -393,6 +430,11 @@ describe('MemoryManager', () => {
       
       const recs = noRecManager.getRecommendations('coding');
       expect(recs.available).toBe(false);
+      expect(noRecManager.getRecommendationMetrics()).toEqual(expect.objectContaining({
+        requests: 1,
+        availableRequests: 0,
+        suggestions: 0
+      }));
       
       noRecManager.stopAutoSave();
     });

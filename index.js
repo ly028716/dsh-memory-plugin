@@ -184,9 +184,13 @@ module.exports = {
 
         // Recommendations
         getRecommendations: (context) => memoryManager.getRecommendations(context),
+        getRecommendationMetrics: () => memoryManager.getRecommendationMetrics(),
 
         // Statistics
-        getStats: () => memoryManager.getStats(),
+        getStats: () => ({
+          ...memoryManager.getStats(),
+          recommendations: memoryManager.getRecommendationMetrics()
+        }),
 
         // Data management
         importData: (data) => memoryManager.importData(data),

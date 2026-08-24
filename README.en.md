@@ -18,6 +18,8 @@
 
 dsh-memory-plugin is an intelligent memory system plugin designed for DeepSeek Harness (DSH). It automatically learns user habits, remembers preferences, tracks project context, and provides personalized smart recommendations based on this data, significantly improving development efficiency and work experience.
 
+Community category: `dsh-category-memory`. See [COMMUNITY-SUBMISSION.md](COMMUNITY-SUBMISSION.md) for the directory submission material; community listing is not an official endorsement.
+
 ## ✨ Key Features
 
 - **🎯 Smart Recommendation Engine** - Automatically recommends the best models, Agents, and tool configurations based on historical data
@@ -88,6 +90,9 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 
 # GitHub pinned commit (CI/audit; replace with the full 40-character SHA)
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
+
+# Community registry spec (replace the placeholder with a full 40-character SHA)
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 ```
 
 #### Release maintainers: post-release installation verification
@@ -196,6 +201,15 @@ In a compatible DSH profile, the plugin connects memory to the Agent:
 ### DSH Web settings card
 
 Open `Settings > Plugins > Memory` in DSH to change six live settings: `trackToolCalls`, `trackPreferences`, `trackProjectContext`, `trackSessionHistory`, `enableRecommendations`, and `allowClearMemory`. Web settings dependencies are optional: with the DSH Web client the card is shown; with CLI/Host only, the prompt, tool, and `ctx.memory` API remain available.
+
+The card labels each automatic collection toggle as enabled or paused and shows the overall collection state plus the number of enabled collectors. When the host provides current-session recommendation metrics, it also shows request count, contextual hit rate, and fallback rate. These metrics stay in process memory and are not written to the memory file.
+
+```javascript
+const metrics = ctx.memory.getRecommendationMetrics();
+console.log(metrics.contextMatchRate, metrics.fallbackRate);
+```
+
+The metrics describe recommendation coverage and contextual matching, not user click-through or acceptance. The plugin does not record prompts, project paths, recommendation text, or upload telemetry.
 
 ## ⚙️ Configuration Options
 

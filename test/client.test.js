@@ -288,6 +288,58 @@ test('card injection exposes only boolean settings and binding status', () => {
   expect(Object.keys(injected).join(' ')).not.toMatch(/clear|export/i);
 });
 
+test('card injection exposes automatic collection status', () => {
+  mockReact();
+  const { apply } = loadClient();
+  const ctx = createContext();
+  apply(ctx);
+
+  const [definition] = ctx.slots.register.mock.calls[0];
+  const injected = definition.inject();
+
+  expect(injected.collection).toEqual(expect.objectContaining({
+    automaticCollectionEnabled: true,
+    enabledCount: 2
+  }));
+  expect(injected.collection.fields.trackPreferences).toEqual(expect.objectContaining({
+    enabled: true,
+    label: expect.stringContaining('开启')
+  }));
+  expect(injected.collection.fields.trackToolCalls).toEqual(expect.objectContaining({
+    enabled: false,
+    label: expect.stringContaining('暂停')
+  }));
+});
+
+test('card renders collection status and optional recommendation metrics', () => {
+  mockReact();
+  const { apply } = loadClient();
+  const ctx = createContext();
+  ctx.binding.getStatus = jest.fn(() => ({
+    recommendations: {
+      requests: 4,
+      contextMatchRate: 0.75,
+      fallbackRate: 0.25
+    }
+  }));
+  apply(ctx);
+
+  const [definition, Card] = ctx.slots.register.mock.calls[0];
+  const element = Card(definition.inject());
+  const collectionStatus = [];
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.props?.['data-dsh-memory'] === 'collection-status') collectionStatus.push(node);
+    for (const child of node.children || []) visit(child);
+  };
+  visit(element);
+
+  expect(collectionStatus).toHaveLength(1);
+  expect(JSON.stringify(collectionStatus[0])).toContain('自动采集：已开启');
+  expect(JSON.stringify(element)).toContain('推荐请求：4');
+  expect(JSON.stringify(element)).toContain('上下文命中率：75%');
+});
+
 test('registered disposer is safe to invoke', () => {
   mockReact();
   const { apply } = loadClient();

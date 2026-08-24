@@ -1,0 +1,50 @@
+{
+  "id": "ly028716/dsh-memory-plugin",
+  "name": "DSH Memory Plugin",
+  "version": "1.0.0",
+  "description": "Local-first memory, privacy-aware collection controls, and contextual recommendations for DeepSeek Harness.",
+  "author": {
+    "name": "ly028716",
+    "url": "https://github.com/ly028716"
+  },
+  "license": "MIT",
+  "category": "memory",
+  "tags": [
+    "dsh-category-memory",
+    "memory",
+    "recommendations",
+    "privacy",
+    "local-first"
+  ],
+  "compatibility": {
+    "dsh": ">=0.1.1-rc.2 <0.2.0",
+    "platforms": [
+      "linux",
+      "macos",
+      "windows"
+    ]
+  },
+  "install": {
+    "target": "github",
+    "spec": "github:ly028716/dsh-memory-plugin#<40-character-commit-sha>",
+    "command": "dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>"
+  },
+  "alternateInstall": {
+    "target": "npm",
+    "spec": "@ly028716/dsh-memory-plugin",
+    "command": "dsh plugin --profile web add @ly028716/dsh-memory-plugin"
+  },
+  "verified": false,
+  "repository": "https://github.com/ly028716/dsh-memory-plugin",
+  "evidence": {
+    "manifest": "package.json:dsh.bundle",
+    "settings": "dsh-memory settings namespace with live Web exposure",
+    "validation": [
+      "npm test -- --runInBand",
+      "npm run check",
+      "npm run test:pinned-commit",
+      "npm run test:package"
+    ]
+  },
+  "disclaimer": "Community directory metadata is not an official endorsement, security audit, or compatibility guarantee."
+}

@@ -96,6 +96,11 @@ module.exports = {
       // 获取推荐
       const recommendations = ctx.memory.getRecommendations('coding');
       console.log('Recommendations:', recommendations);
+
+      // 查看当前进程的推荐效果指标（不持久化）
+      const metrics = ctx.memory.getRecommendationMetrics();
+      console.log('Context match rate:', metrics.contextMatchRate);
+      console.log('Fallback rate:', metrics.fallbackRate);
     }
   }
 };
@@ -193,6 +198,8 @@ async function restoreMemory(ctx, backupFile) {
   }
 }
 ```
+
+`ctx.memory.getRecommendationMetrics()` 返回当前进程内的推荐请求、上下文命中和回退聚合指标。`contextMatchRate` 与 `fallbackRate` 在没有上下文请求时为 `null`；它们不表示用户采纳率，也不会记录 prompt、项目路径、推荐文本或上传数据。
 
 ### 7. 隐私控制
 

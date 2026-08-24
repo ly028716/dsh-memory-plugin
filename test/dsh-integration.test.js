@@ -270,6 +270,10 @@ describe('DSH prompt and tool integration', () => {
       watch({ trackToolCalls: false, enableRecommendations: true, allowClearMemory: true });
       expect(stopAutoSave).toHaveBeenCalled();
       expect(context.services.memory.getRecommendations()).toEqual(expect.objectContaining({ available: true }));
+      expect(context.services.memory.getRecommendationMetrics()).toEqual(expect.objectContaining({
+        requests: expect.any(Number),
+        patternRecognitionThreshold: expect.any(Number)
+      }));
     } finally {
       startAutoSave.mockRestore();
       stopAutoSave.mockRestore();

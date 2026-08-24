@@ -24,6 +24,13 @@ pnpm exec dsh-memory-plugin doctor --profile <name> --fix
 doctor 默认只读检查；`--fix` 只把 DSH 共享 `profiles/node_modules` 中的物理冲突目录移动到
 带时间戳的备份目录，不删除文件。GitHub pinned commit 仅用于 CI/复现，并且必须使用完整 40 位 SHA。
 
+社区目录标准 pinned commit spec：
+
+```bash
+# 将占位符替换为完整 40 位 SHA
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
+```
+
 ### 方法 1：在 DSH 配置文件中引用（推荐）
 
 在你的项目根目录创建或编辑 `dsh.config.js`：

@@ -56,6 +56,9 @@ dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\dsh-memory-plug
 
 # CI/复现：将 <full-40-char-sha> 替换为完整 commit SHA
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<full-40-char-sha>"
+
+# 社区目录标准 spec：将占位符替换为完整 40 位 SHA
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 ```
 
 GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应在 profile 目录中执行

@@ -59,6 +59,16 @@ describe('default collection policy', () => {
     expect(context.services.memory.getStats().totalSessions).toBe(0);
     expect(context.services.memory.getStats().trackedTools).toBe(0);
     expect(context.services.memory.getStats().activeProjects).toBe(0);
+    expect(context.services.memory.getRecommendationMetrics()).toEqual(expect.objectContaining({
+      requests: 0,
+      availableRequests: 0,
+      contextMatchRate: null,
+      fallbackRate: null
+    }));
+    expect(context.services.memory.getStats().recommendations).toEqual(expect.objectContaining({
+      requests: 0,
+      patternRecognitionThreshold: 3
+    }));
     expect(context.services.memory.exportData().sessionHistory.recentTopics).toEqual([]);
     expect(context.services.memory.exportData().projectContext.activeProjects).toEqual([]);
   });

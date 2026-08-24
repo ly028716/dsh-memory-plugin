@@ -18,6 +18,8 @@
 
 dsh-memory-plugin 是一个为 DeepSeek Harness (DSH) 设计的智能记忆系统插件。它能够自动学习用户的使用习惯、记住偏好设置、跟踪项目上下文，并基于这些数据提供个性化的智能推荐，显著提升开发效率和工作体验。
 
+社区分类：`dsh-category-memory`。目录提交材料见 [COMMUNITY-SUBMISSION.md](COMMUNITY-SUBMISSION.md)；社区收录不构成官方认证。
+
 ## ✨ 核心功能
 
 - **🎯 智能推荐引擎** - 基于历史数据自动推荐最适合的模型、Agent 和工具配置
@@ -87,6 +89,9 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 
 # GitHub pinned commit（CI/审计场景；替换为完整 40 位 SHA）
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<commit-sha>"
+
+# DSH 社区目录标准 spec（将占位符替换为完整 40 位 SHA）
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 ```
 
 #### 发布维护者：发布后安装验证
@@ -194,6 +199,15 @@ await ctx.memory.applyRetention();
 ### DSH Web 设置卡
 
 打开 DSH 的 `Settings > Plugins > Memory` 可实时调整六个设置：`trackToolCalls`、`trackPreferences`、`trackProjectContext`、`trackSessionHistory`、`enableRecommendations`、`allowClearMemory`。Web 设置依赖是可选的：安装了 DSH Web client 时显示设置卡；只有 CLI/Host 时，prompt、tool 和 `ctx.memory` API 仍可用。
+
+设置卡会把四个自动采集开关显示为“已开启/已暂停”，并显示自动采集总状态和已开启项目数。若宿主提供当前会话的推荐指标，还会显示推荐请求数、上下文命中率和回退率；这些指标只在进程内聚合，不写入记忆文件。
+
+```javascript
+const metrics = ctx.memory.getRecommendationMetrics();
+console.log(metrics.contextMatchRate, metrics.fallbackRate);
+```
+
+指标表示推荐覆盖和上下文命中情况，不代表用户点击或采纳率；插件不会记录 prompt、项目路径、推荐文本或上传遥测。
 
 ## ⚙️ 配置选项
 

@@ -53,8 +53,23 @@
       return {
         writable: typeof binding.update === 'function' || typeof binding.set === 'function',
         dirty: Boolean(status.dirty ?? binding.dirty),
-        failed: Boolean(status.failed ?? binding.failed)
+        failed: Boolean(status.failed ?? binding.failed),
+        recommendations: readRecommendationMetrics(status)
       };
+    }
+
+    function readRecommendationMetrics(status) {
+      const metrics = status && status.recommendations;
+      if (!metrics || typeof metrics !== 'object') return null;
+
+      const result = {};
+      for (const field of ['requests', 'availableRequests', 'contextualRequests', 'contextMatches', 'fallbackRequests', 'suggestions']) {
+        if (Number.isFinite(metrics[field])) result[field] = metrics[field];
+      }
+      for (const field of ['contextMatchRate', 'fallbackRate']) {
+        if (metrics[field] === null || Number.isFinite(metrics[field])) result[field] = metrics[field];
+      }
+      return Object.keys(result).length > 0 ? result : null;
     }
 
     function booleanValues(binding) {
@@ -63,6 +78,25 @@
         result[field] = typeof values[field] === 'boolean' ? values[field] : false;
         return result;
       }, {});
+    }
+
+    function readCollectionStatus(values) {
+      const collectionFields = SETTINGS_FIELDS.filter((field) => field.startsWith('track'));
+      const fields = collectionFields.reduce((result, field) => {
+        const enabled = values[field] === true;
+        result[field] = {
+          enabled,
+          label: enabled ? '已开启' : '已暂停'
+        };
+        return result;
+      }, {});
+      const enabledCount = collectionFields.filter((field) => fields[field].enabled).length;
+
+      return {
+        fields,
+        enabledCount,
+        automaticCollectionEnabled: enabledCount > 0
+      };
     }
 
     function updateValues(binding, field, value) {
@@ -77,6 +111,7 @@
 
     function createCardProps(binding) {
       const values = booleanValues(binding);
+      const status = readStatus(binding);
       const fields = SETTINGS_FIELDS.reduce((result, field) => {
         result[field] = {
           type: 'boolean',
@@ -90,8 +125,14 @@
         namespace: MEMORY_NAMESPACE,
         title: 'Memory',
         fields,
-        status: readStatus(binding)
+        status,
+        collection: readCollectionStatus(values),
+        recommendations: status.recommendations
       };
+    }
+
+    function formatRate(rate) {
+      return Number.isFinite(rate) ? `${Math.round(rate * 100)}%` : '暂无数据';
     }
 
     function MemorySettingsCard(props) {
@@ -100,6 +141,12 @@
 
       const fields = props?.fields || {};
       const status = props?.status || {};
+      const collection = props?.collection || {
+        fields: {},
+        enabledCount: 0,
+        automaticCollectionEnabled: false
+      };
+      const recommendations = props?.recommendations;
       const controls = SETTINGS_FIELDS.map((field) => {
         const definition = fields[field] || {};
         return React.createElement(
@@ -115,10 +162,36 @@
         );
       });
 
+      const collectionFields = Object.entries(collection.fields || {}).map(([field, definition]) => (
+        React.createElement(
+          'span',
+          { key: field, 'data-dsh-memory-collection-field': field },
+          `${field}: ${definition.label}`
+        )
+      ));
+      const collectionStatus = React.createElement(
+        'div',
+        { 'data-dsh-memory': 'collection-status' },
+        `自动采集：${collection.automaticCollectionEnabled ? '已开启' : '已暂停'}`,
+        `已开启 ${collection.enabledCount} 项`,
+        collectionFields
+      );
+      const recommendationStatus = recommendations
+        ? React.createElement(
+          'div',
+          { 'data-dsh-memory': 'recommendation-metrics' },
+          `推荐请求：${recommendations.requests ?? 0}`,
+          `上下文命中率：${formatRate(recommendations.contextMatchRate)}`,
+          `回退率：${formatRate(recommendations.fallbackRate)}`
+        )
+        : '当前会话暂无推荐指标';
+
       return React.createElement(
         'section',
         { 'data-dsh-memory': MEMORY_NAMESPACE },
         React.createElement('h2', null, props?.title || 'Memory'),
+        collectionStatus,
+        recommendationStatus,
         `writable: ${Boolean(status.writable)}`,
         `dirty: ${Boolean(status.dirty)}`,
         `failed: ${Boolean(status.failed)}`,

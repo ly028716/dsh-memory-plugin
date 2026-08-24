@@ -19,6 +19,14 @@ class MemoryManager {
     this._autoSaveGeneration = 0;
     this.sessionStartTime = null;
     this._initializePromise = null;
+    this.recommendationMetrics = {
+      requests: 0,
+      availableRequests: 0,
+      contextualRequests: 0,
+      contextMatches: 0,
+      fallbackRequests: 0,
+      suggestions: 0
+    };
   }
 
   /**
@@ -281,9 +289,13 @@ class MemoryManager {
    * @returns {Object} Recommendations object
    */
   getRecommendations(context) {
+    this.recommendationMetrics.requests += 1;
+
     if (!this.config.enableRecommendations) {
       return { available: false };
     }
+
+    this.recommendationMetrics.availableRequests += 1;
 
     const recommendations = {
       available: true,
@@ -315,6 +327,9 @@ class MemoryManager {
     const contextTokens = typeof context === 'string'
       ? context.trim().toLowerCase().split(/\s+/).filter(Boolean)
       : [];
+    const hasContext = contextTokens.length > 0;
+    if (hasContext) this.recommendationMetrics.contextualRequests += 1;
+
     const matchesContext = (value) => {
       if (contextTokens.length === 0) return true;
       const text = String(value || '').toLowerCase();
@@ -352,7 +367,36 @@ class MemoryManager {
       });
     }
 
+    if (hasContext) {
+      const hasContextMatch = contextualCommands.length > 0 || contextualProjects.length > 0;
+      const hasFallbackCandidate = !hasContextMatch && (
+        frequentCommands.length > 0 || activeProjects.length > 0
+      );
+      if (hasContextMatch) this.recommendationMetrics.contextMatches += 1;
+      else if (hasFallbackCandidate) this.recommendationMetrics.fallbackRequests += 1;
+    }
+
+    this.recommendationMetrics.suggestions += recommendations.suggestions.length;
+
     return recommendations;
+  }
+
+  /**
+   * Get privacy-safe recommendation quality metrics for the current process.
+   * @returns {Object} Recommendation request, coverage, and fallback metrics
+   */
+  getRecommendationMetrics() {
+    const { contextualRequests } = this.recommendationMetrics;
+    return {
+      ...this.recommendationMetrics,
+      contextMatchRate: contextualRequests > 0
+        ? this.recommendationMetrics.contextMatches / contextualRequests
+        : null,
+      fallbackRate: contextualRequests > 0
+        ? this.recommendationMetrics.fallbackRequests / contextualRequests
+        : null,
+      patternRecognitionThreshold: this.config.patternRecognitionThreshold
+    };
   }
 
   /**
