@@ -16,6 +16,12 @@
     "privacy",
     "local-first"
   ],
+  "topics": [
+    "dsh-plugin",
+    "dsh-category-memory",
+    "deepseek-harness",
+    "memory"
+  ],
   "compatibility": {
     "dsh": ">=0.1.1-rc.2 <0.2.0",
     "platforms": [

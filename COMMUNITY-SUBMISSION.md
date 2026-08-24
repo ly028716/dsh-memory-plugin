@@ -5,10 +5,36 @@
 - 稳定 ID：`ly028716/dsh-memory-plugin`
 - 分类：`memory`
 - 检索标签：`dsh-category-memory`
+- GitHub Topics：`dsh-plugin`、`dsh-category-memory`、`deepseek-harness`、`memory`
 - 仓库：[ly028716/dsh-memory-plugin](https://github.com/ly028716/dsh-memory-plugin)
 - 机器可读条目：[community/registry-entry.json](community/registry-entry.json)
 
 `dsh-category-memory` 是现有插件的社区分类和检索标识，不是第二个 npm 包。
+
+## GitHub Topic 设置
+
+GitHub Topics 属于仓库设置，不会随 Git commit 自动写入。仓库维护者需要在 GitHub 仓库的 `Settings > Topics` 中加入以下四个 topic：
+
+```text
+dsh-plugin
+dsh-category-memory
+deepseek-harness
+memory
+```
+
+也可以使用已认证的 GitHub API（不要把 token 写入仓库）：
+
+```powershell
+$headers = @{
+  Accept = 'application/vnd.github+json'
+  Authorization = "Bearer $env:GITHUB_TOKEN"
+  'X-GitHub-Api-Version' = '2022-11-28'
+}
+$body = @{ names = @('dsh-plugin', 'dsh-category-memory', 'deepseek-harness', 'memory') } | ConvertTo-Json
+Invoke-RestMethod -Method Put `
+  -Uri 'https://api.github.com/repos/ly028716/dsh-memory-plugin/topics' `
+  -Headers $headers -Body $body -ContentType 'application/json'
+```
 
 ## 安装信息
 

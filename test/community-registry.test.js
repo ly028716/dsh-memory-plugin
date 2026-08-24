@@ -18,6 +18,12 @@ describe('community registry submission contract', () => {
       repository: 'https://github.com/ly028716/dsh-memory-plugin'
     }));
     expect(entry.tags).toContain('dsh-category-memory');
+    expect(entry.topics).toEqual(expect.arrayContaining([
+      'dsh-plugin',
+      'dsh-category-memory',
+      'deepseek-harness',
+      'memory'
+    ]));
     expect(entry.compatibility.dsh).toBe('>=0.1.1-rc.2 <0.2.0');
     expect(entry.install).toEqual(expect.objectContaining({
       target: 'github',
