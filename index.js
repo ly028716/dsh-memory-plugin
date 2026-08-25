@@ -22,7 +22,7 @@ const { registerMemorySettings, pickSettings } = require('./memory-settings');
 
 module.exports = {
   name: 'memory',
-  inject: ['systemPrompt', 'tools', 'settings'],
+  inject: ['systemPrompt', 'tools', 'settings', 'sessions'],
   
   /**
    * Apply the memory plugin to the DSH context
@@ -83,8 +83,22 @@ module.exports = {
         if (typeof dispose === 'function') registrationDisposers.push(dispose);
       }
 
-      const settingsDispose = registerMemorySettings(ctx, config, (nextSettings) => {
+      let initializeMemory;
+
+      const recordCurrentWorkspace = async ({ ensureInitialized = true } = {}) => {
+        if (!config.trackProjectContext || typeof initializeMemory !== 'function') return;
+        if (ensureInitialized) await initializeMemory();
+        const cwd = process.cwd();
+        await memoryManager.recordProjectContext({
+          path: cwd,
+          name: cwd.split(/[\\/]/).pop() || cwd,
+          tags: ['current-workspace']
+        });
+      };
+
+      const settingsDispose = registerMemorySettings(ctx, config, async (nextSettings) => {
         const wasAutomaticCollectionEnabled = memoryManager.isAutomaticCollectionEnabled();
+        const wasProjectTrackingEnabled = config.trackProjectContext;
         Object.assign(config, pickSettings(nextSettings));
         Object.assign(memoryManager.config, pickSettings(nextSettings));
         const isAutomaticCollectionEnabled = memoryManager.isAutomaticCollectionEnabled();
@@ -95,6 +109,10 @@ module.exports = {
           } else if (wasAutomaticCollectionEnabled && !isAutomaticCollectionEnabled) {
             memoryManager.stopAutoSave();
           }
+        }
+
+        if (!wasProjectTrackingEnabled && config.trackProjectContext) {
+          await recordCurrentWorkspace();
         }
       });
       if (typeof settingsDispose === 'function') registrationDisposers.push(settingsDispose);
@@ -115,7 +133,7 @@ module.exports = {
       let isInitialized = false;
       let initializationPromise = null;
       
-      const initializeMemory = async () => {
+      initializeMemory = async () => {
         if (isInitialized) return;
 
         if (initializationPromise) return initializationPromise;
@@ -125,14 +143,7 @@ module.exports = {
             await memoryManager.initialize();
             // Record current working directory only when automatic project
             // collection is explicitly enabled.
-            if (config.trackProjectContext) {
-              const cwd = process.cwd();
-              await memoryManager.recordProjectContext({
-                path: cwd,
-                name: cwd.split(/[\\/]/).pop() || cwd,
-                tags: ['current-workspace']
-              });
-            }
+            await recordCurrentWorkspace({ ensureInitialized: false });
             isInitialized = true;
             console.log('Memory system initialized successfully');
           } catch (error) {
@@ -147,7 +158,7 @@ module.exports = {
       };
       
       // Subscribe to tool calls to track usage
-      if (config.trackToolCalls && ctx.on) {
+      if (ctx.tools && ctx.on) {
         // Cordis event listeners are lifecycle-bound effects and are removed
         // automatically when the plugin unloads.
         ctx.on('tools/result', async (exec, result) => {
@@ -160,6 +171,37 @@ module.exports = {
             });
           } catch (error) {
             console.error('Memory plugin: Failed to record tool call:', error.message);
+          }
+        });
+      }
+
+      // Session events are emitted by the core session service after each
+      // committed append. Keep the listener installed even when the setting
+      // starts disabled so live settings can take effect without rebuilding
+      // the plugin.
+      if (ctx.sessions && ctx.on) {
+        ctx.on('session/event', async (_session, event) => {
+          if (!config.trackSessionHistory || !event || typeof event.type !== 'string') return;
+
+          if (event.type === 'user/message') {
+            if (event.data?.source?.kind !== 'user' || !Array.isArray(event.data.content)) return;
+            const topic = event.data.content
+              .filter((block) => block && block.type === 'text' && typeof block.text === 'string')
+              .map((block) => block.text)
+              .join('\n')
+              .trim();
+            if (topic) await memoryManager.recordSessionItem('topic', topic);
+            return;
+          }
+
+          if (event.type === 'todo/write' && Array.isArray(event.data?.todos)) {
+            const tasks = event.data.todos
+              .filter((todo) => todo && todo.status !== 'completed' && typeof todo.content === 'string')
+              .map((todo) => todo.content.trim())
+              .filter(Boolean);
+            for (const task of tasks) {
+              await memoryManager.recordSessionItem('task', task);
+            }
           }
         });
       }

@@ -1,3 +1,4 @@
+const { createRequire } = require('module');
 const { validateConfig } = require('./config');
 
 const SETTINGS_NAMESPACE = 'dsh-memory';
@@ -19,9 +20,12 @@ function pickSettings(config = {}) {
   }, {});
 }
 
-function loadOptionalSchema(loadModule = () => require('@deepseek-ai/schemastery')) {
+function loadOptionalSchema(loadModule, resolutionAnchor) {
   try {
-    const imported = loadModule();
+    const importer = loadModule || (resolutionAnchor
+      ? createRequire(resolutionAnchor)
+      : require);
+    const imported = importer('@deepseek-ai/schemastery');
     const Schema = imported && (imported.default || imported);
     if (!Schema || typeof Schema.object !== 'function' || typeof Schema.boolean !== 'function') {
       return undefined;
@@ -42,7 +46,7 @@ function registerMemorySettings(ctx, config, onChange) {
     return undefined;
   }
 
-  const schema = loadOptionalSchema();
+  const schema = loadOptionalSchema(undefined, ctx.baseUrl);
   if (!schema) return undefined;
 
   const options = {
@@ -61,11 +65,22 @@ function registerMemorySettings(ctx, config, onChange) {
     const dispose = scope.watch((next) => {
       try {
         const validated = options.validate(next);
-        onChange(pickSettings(validated));
+        return Promise.resolve(onChange(pickSettings(validated))).catch(() => {});
       } catch (_error) {
         // A rejected live setting must not escape into the host event loop.
       }
     });
+
+    // `watch` only fires after a commit. Apply the already-resolved settings
+    // once during registration so a plugin restart does not fall back to its
+    // entry defaults while the UI still shows persisted user values.
+    try {
+      const initial = options.validate(scope.get());
+      const result = onChange(pickSettings(initial));
+      if (result && typeof result.then === 'function') result.catch(() => {});
+    } catch (_error) {
+      // A malformed or unavailable initial snapshot leaves entry defaults in place.
+    }
 
     return () => {
       try {

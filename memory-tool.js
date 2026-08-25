@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { buildMemoryContext } = require('./memory-context');
 const { redactSensitiveData } = require('./privacy');
 const { assertDataWithinLimits, INPUT_LIMITS } = require('./limits');
@@ -25,6 +26,7 @@ function defer(exec, result) {
     if (!exec || typeof exec.deferContext !== 'function') return;
     const text = JSON.stringify(result);
     exec.deferContext({
+      id: crypto.randomUUID(),
       role: 'user',
       content: [{ type: 'text', text: `Memory tool result\n${text}` }],
       source: { kind: 'plugin', name: 'dsh-memory-plugin' }

@@ -10,11 +10,14 @@ const plugin = require('../index');
 const { MemoryManager } = require('../memory-manager');
 const { loadOptionalSchema } = require('../memory-settings');
 
-function createIntegrationContext({ prompt = true, tools = true, settings = false } = {}) {
+function createIntegrationContext({ prompt = true, tools = true, settings = false, sessions = true } = {}) {
   const promptDispose = jest.fn();
   const toolDispose = jest.fn();
   const settingsWatchDispose = jest.fn();
-  const settingsScope = { watch: jest.fn(() => settingsWatchDispose) };
+  const settingsScope = {
+    get: jest.fn(() => ({})),
+    watch: jest.fn(() => settingsWatchDispose)
+  };
   const settingsRegister = jest.fn(() => settingsScope);
   const context = {
     effects: [],
@@ -23,6 +26,7 @@ function createIntegrationContext({ prompt = true, tools = true, settings = fals
     systemPrompt: prompt ? { context: jest.fn(() => promptDispose) } : undefined,
     tools: tools ? { register: jest.fn(() => toolDispose) } : undefined,
     settings: settings ? { register: settingsRegister } : undefined,
+    sessions: sessions ? {} : undefined,
 
     on(event, handler) {
       this.listeners.push({ event, handler });
@@ -66,6 +70,10 @@ describe('DSH prompt and tool integration', () => {
 
   afterEach(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  test('declares the DSH sessions capability used by automatic session tracking', () => {
+    expect(plugin.inject).toEqual(expect.arrayContaining(['sessions']));
   });
 
   test('registers prompt context and memory tool when DSH capabilities exist', async () => {
@@ -182,7 +190,7 @@ describe('DSH prompt and tool integration', () => {
   });
 
   test('keeps legacy contexts working without prompt and tool capabilities', async () => {
-    const context = createIntegrationContext({ prompt: false, tools: false });
+    const context = createIntegrationContext({ prompt: false, tools: false, sessions: false });
 
     expect(() => plugin.apply(context, { storagePath: testFile })).not.toThrow();
     await context.services.memory.ready;
@@ -281,6 +289,116 @@ describe('DSH prompt and tool integration', () => {
     }
   });
 
+  test('live enabling tool tracking starts collecting subsequent tool results', async () => {
+    const context = createIntegrationContext({ settings: true });
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+
+      const watch = context.registrationDisposers.settingsScope.watch.mock.calls[0][0];
+      const toolListener = context.listeners.find(listener => listener.event === 'tools/result');
+      expect(toolListener).toBeDefined();
+
+      await toolListener.handler(
+        { name: 'read', arguments: { command: 'before-enable' } },
+        { ok: true }
+      );
+      expect(context.services.memory.exportData().sessionHistory.toolUsageStats).toEqual({});
+
+      await watch({ trackToolCalls: true, trackPreferences: true });
+      await toolListener.handler(
+        { name: 'read', arguments: { command: 'after-enable' } },
+        { ok: true }
+      );
+
+      const exported = context.services.memory.exportData();
+      expect(exported.sessionHistory.toolUsageStats).toEqual({ read: 1 });
+      expect(exported.inputHabits.preferredTools).toContain('read');
+    } finally {
+      await disposeContext(context);
+    }
+  });
+
+  test('loads persisted settings before the first automatic collection', async () => {
+    const context = createIntegrationContext({ settings: true });
+    context.registrationDisposers.settingsScope.get.mockReturnValue({
+      trackToolCalls: true,
+      trackPreferences: true,
+      trackProjectContext: true,
+      trackSessionHistory: true,
+      enableRecommendations: true,
+      allowClearMemory: true
+    });
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+
+      const toolListener = context.listeners.find(listener => listener.event === 'tools/result');
+      await toolListener.handler(
+        { name: 'read', arguments: { command: 'after-restart' } },
+        { ok: true }
+      );
+
+      const exported = context.services.memory.exportData();
+      expect(exported.projectContext.activeProjects).toEqual([
+        expect.objectContaining({ tags: ['current-workspace'] })
+      ]);
+      expect(exported.sessionHistory.toolUsageStats).toEqual({ read: 1 });
+      expect(exported.inputHabits.preferredTools).toContain('read');
+    } finally {
+      await disposeContext(context);
+    }
+  });
+
+  test('live enabling project tracking records the current workspace', async () => {
+    const context = createIntegrationContext({ settings: true });
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+      expect(context.services.memory.exportData().projectContext.activeProjects).toEqual([]);
+
+      const watch = context.registrationDisposers.settingsScope.watch.mock.calls[0][0];
+      await watch({ trackProjectContext: true });
+
+      expect(context.services.memory.exportData().projectContext.activeProjects).toEqual([
+        expect.objectContaining({ tags: ['current-workspace'] })
+      ]);
+    } finally {
+      await disposeContext(context);
+    }
+  });
+
+  test('live enabling session history records subsequent user messages', async () => {
+    const context = createIntegrationContext({ settings: true });
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+
+      const watch = context.registrationDisposers.settingsScope.watch.mock.calls[0][0];
+      const sessionListener = context.listeners.find(listener => listener.event === 'session/event');
+      expect(sessionListener).toBeDefined();
+
+      await watch({ trackSessionHistory: true });
+      await sessionListener.handler({}, {
+        type: 'user/message',
+        data: {
+          source: { kind: 'user' },
+          content: [{ type: 'text', text: 'verify memory collection' }]
+        }
+      });
+
+      expect(context.services.memory.exportData().sessionHistory.recentTopics).toEqual([
+        expect.objectContaining({ content: 'verify memory collection' })
+      ]);
+    } finally {
+      await disposeContext(context);
+    }
+  });
+
   test('invalid live settings are rejected without changing runtime state', async () => {
     const context = createIntegrationContext({ settings: true });
     const startAutoSave = jest.spyOn(MemoryManager.prototype, 'startAutoSave');
@@ -322,5 +440,10 @@ describe('DSH prompt and tool integration', () => {
     expect(loadOptionalSchema(() => {
       throw new Error('schemastery is not installed');
     })).toBeUndefined();
+  });
+
+  test('declares schemastery as a runtime dependency for linked profile installs', () => {
+    const packageJson = require('../package.json');
+    expect(packageJson.dependencies?.['@deepseek-ai/schemastery']).toBeTruthy();
   });
 });

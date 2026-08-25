@@ -34,15 +34,19 @@ function createContext(overrides = {}) {
   const settingsScope = {
     bind: jest.fn(() => binding)
   };
+  const localeDispose = jest.fn();
+  const locale = { register: jest.fn(() => localeDispose) };
   const slots = {
     inject: jest.fn((_name, register) => register()),
     register: jest.fn(() => jest.fn())
   };
   const effects = [];
   return {
-    get: jest.fn((name) => ({ slots, settingsScope }[name])),
+    get: jest.fn((name) => ({ slots, settingsScope, locale }[name])),
     slots,
     settingsScope,
+    locale,
+    localeDispose,
     binding,
     effects,
     effect: jest.fn((factory) => {
@@ -202,6 +206,44 @@ test('waits for the standard settings slot before registering the keyed Memory c
   expect(ctx.effect).toHaveBeenCalledTimes(1);
 });
 
+test('card uses live SettingsScope snapshot, registers locale, and respects read-only mode', () => {
+  mockReact();
+  const { apply } = loadClient();
+  const ctx = createContext();
+  ctx.binding.getSnapshot = jest.fn(() => ({
+    status: 'ready',
+    value: { ...ctx.binding.values, trackToolCalls: true },
+    writable: false,
+    mode: 'host'
+  }));
+
+  apply(ctx);
+
+  expect(ctx.locale.register).toHaveBeenCalledWith('dsh-memory', expect.objectContaining({
+    zh: expect.any(Object),
+    en: expect.any(Object)
+  }));
+  const [definition, Card] = ctx.slots.register.mock.calls[0];
+  expect(definition.inject().fields.trackToolCalls.value).toBe(true);
+
+  const collect = (node, result = []) => {
+    if (Array.isArray(node)) {
+      for (const child of node) collect(child, result);
+      return result;
+    }
+    if (!node || typeof node !== 'object') return result;
+    if (node.type === 'input' && node.props.type === 'checkbox') result.push(node);
+    for (const child of node.children || []) collect(child, result);
+    return result;
+  };
+  const element = Card(definition.inject());
+  expect(collect(element)).toHaveLength(6);
+  expect(collect(element).every((input) => input.props.disabled)).toBe(true);
+
+  ctx.effects[0]();
+  expect(ctx.localeDispose).toHaveBeenCalledTimes(1);
+});
+
 test('apply skips the card safely when React is unavailable', () => {
   jest.resetModules();
   jest.doMock('react', () => {
@@ -218,7 +260,7 @@ test('apply skips the card safely when React is unavailable', () => {
   jest.dontMock('react');
 });
 
-test('MemorySettingsCard renders a React element with six checkbox controls and status', () => {
+test('MemorySettingsCard renders a DSH-style card with six staged checkbox controls', async () => {
   jest.resetModules();
   jest.doMock('react', () => ({
     createElement: (type, props, ...children) => ({
@@ -248,15 +290,30 @@ test('MemorySettingsCard renders a React element with six checkbox controls and 
     const element = Card(definition.inject());
     const checkboxes = collect(element);
 
-    expect(element.type).toBe('section');
+    expect(element.type).toBe('li');
+    expect(element.props['data-dsh-memory']).toBe('dsh-memory');
     expect(checkboxes).toHaveLength(6);
     expect(checkboxes.every((input) => typeof input.props.checked === 'boolean')).toBe(true);
     expect(checkboxes.every((input) => typeof input.props.onChange === 'function')).toBe(true);
-    expect(element.children.join(' ')).toContain('writable');
-    expect(element.children.join(' ')).toContain('dirty');
-    expect(element.children.join(' ')).toContain('failed');
+    expect(JSON.stringify(element)).toContain('采集控制');
+    expect(JSON.stringify(element)).toContain('数据安全');
 
     checkboxes[0].props.onChange({ target: { checked: true } });
+    expect(ctx.binding.update).not.toHaveBeenCalled();
+    const buttons = [];
+    const collectButtons = (node) => {
+      if (Array.isArray(node)) {
+        for (const child of node) collectButtons(child);
+        return;
+      }
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'button') buttons.push(node);
+      for (const child of node.children || []) collectButtons(child);
+    };
+    collectButtons(element);
+    const saveButton = buttons.find((button) => button.children.includes('保存'));
+    expect(saveButton).toBeTruthy();
+    saveButton.props.onClick();
     expect(ctx.binding.update).toHaveBeenCalledWith(expect.objectContaining({ trackToolCalls: true }));
   });
   jest.dontMock('react');
@@ -345,14 +402,14 @@ test('card renders collection status and optional recommendation metrics', () =>
   expect(JSON.stringify(collectionStatus[0])).toContain('自动采集：已开启');
   expect(recommendationMetrics).toHaveLength(1);
   const metricsText = JSON.stringify(recommendationMetrics[0]);
-  expect(metricsText).toContain('推荐请求：8');
-  expect(metricsText).toContain('可用请求：7');
-  expect(metricsText).toContain('上下文请求：6');
-  expect(metricsText).toContain('上下文命中：4');
-  expect(metricsText).toContain('回退请求：2');
-  expect(metricsText).toContain('建议数：12');
-  expect(metricsText).toContain('上下文命中率：67%');
-  expect(metricsText).toContain('回退率：33%');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"requests"');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"availableRequests"');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"contextualRequests"');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"contextMatches"');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"fallbackRequests"');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"suggestions"');
+  expect(metricsText).toContain('67%');
+  expect(metricsText).toContain('33%');
 });
 
 test('card renders a safe empty state for missing recommendation metrics', () => {
@@ -380,8 +437,9 @@ test('card renders a safe empty state for missing recommendation metrics', () =>
 
   expect(recommendationMetrics).toHaveLength(1);
   const metricsText = JSON.stringify(recommendationMetrics[0]);
-  expect(metricsText).toContain('上下文命中率：暂无数据');
-  expect(metricsText).toContain('回退率：暂无数据');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"contextMatchRate"');
+  expect(metricsText).toContain('"data-dsh-memory-metric":"fallbackRate"');
+  expect(metricsText).toContain('暂无数据');
 });
 
 test('registered disposer is safe to invoke', () => {

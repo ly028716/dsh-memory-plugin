@@ -49,6 +49,7 @@ describe('memory agent tool', () => {
     expect(result).not.toHaveProperty('raw');
     expect(JSON.stringify(result)).not.toContain('DO_NOT_LEAK');
     expect(contextExec.deferContext).toHaveBeenCalledWith(expect.objectContaining({
+      id: expect.any(String),
       role: 'user',
       content: [{ type: 'text', text: expect.any(String) }],
       source: { kind: 'plugin', name: 'dsh-memory-plugin' }

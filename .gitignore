@@ -36,6 +36,9 @@ playwright-report/
 test-results/
 test-artifacts/
 
+# Brainstorm visual prototypes
+.superpowers/
+
 # Build output
 dist/
 build/
