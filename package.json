@@ -60,7 +60,7 @@
     "test:pinned-commit": "node test-pinned-commit.js",
     "test:dsh-e2e": "node test-dsh-e2e.js",
     "test:browser-e2e": "playwright test --config=playwright.config.js",
-    "check": "node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check migrations.js && node --check data-lifecycle.js && node --check memory-manager.js && node --check privacy.js && node --check playwright.config.js && node --check test/browser-server.js",
+    "check": "node check-dependencies.js && node --check index.js && node --check client.js && node --check config.js && node --check limits.js && node --check storage.js && node --check migrations.js && node --check data-lifecycle.js && node --check memory-manager.js && node --check privacy.js && node --check playwright.config.js && node --check test/browser-server.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
@@ -68,7 +68,15 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/test/e2e/"
-    ]
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 75,
+        "branches": 65,
+        "functions": 80,
+        "lines": 78
+      }
+    }
   },
   "keywords": [
     "dsh",

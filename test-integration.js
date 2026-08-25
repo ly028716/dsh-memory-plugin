@@ -49,6 +49,12 @@ async function simulateDSHLoading() {
     _services: {},
     _serviceDisposers: [],
     _listeners: [],
+    tools: {
+      register() {
+        return () => {};
+      }
+    },
+    sessions: {},
     
     effect(effectFn) {
       const cleanup = effectFn();

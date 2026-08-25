@@ -89,6 +89,13 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('test -n "$github_tarball"');
   });
 
+  test('should resolve runtime dependencies from the registry for local tarball verification', () => {
+    const installVerifier = fs.readFileSync(path.join(__dirname, '..', 'test-release-install.js'), 'utf8');
+
+    expect(installVerifier).not.toContain("installSource(tempDir, options.registry, consumerDir, source, Boolean(options.npmTarball))");
+    expect(installVerifier).not.toContain("installSource(tempDir, options.registry, consumerDir, tarball, false)");
+  });
+
   test('should isolate release publishing and installation verification with least-privilege jobs', () => {
     const workflow = readWorkflow(path.join(__dirname, '..', '.github', 'workflows', 'release.yml'));
     const jobBlock = (name) => {

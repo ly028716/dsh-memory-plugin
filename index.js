@@ -181,27 +181,31 @@ module.exports = {
       // the plugin.
       if (ctx.sessions && ctx.on) {
         ctx.on('session/event', async (_session, event) => {
-          if (!config.trackSessionHistory || !event || typeof event.type !== 'string') return;
+          try {
+            if (!config.trackSessionHistory || !event || typeof event.type !== 'string') return;
 
-          if (event.type === 'user/message') {
-            if (event.data?.source?.kind !== 'user' || !Array.isArray(event.data.content)) return;
-            const topic = event.data.content
-              .filter((block) => block && block.type === 'text' && typeof block.text === 'string')
-              .map((block) => block.text)
-              .join('\n')
-              .trim();
-            if (topic) await memoryManager.recordSessionItem('topic', topic);
-            return;
-          }
-
-          if (event.type === 'todo/write' && Array.isArray(event.data?.todos)) {
-            const tasks = event.data.todos
-              .filter((todo) => todo && todo.status !== 'completed' && typeof todo.content === 'string')
-              .map((todo) => todo.content.trim())
-              .filter(Boolean);
-            for (const task of tasks) {
-              await memoryManager.recordSessionItem('task', task);
+            if (event.type === 'user/message') {
+              if (event.data?.source?.kind !== 'user' || !Array.isArray(event.data.content)) return;
+              const topic = event.data.content
+                .filter((block) => block && block.type === 'text' && typeof block.text === 'string')
+                .map((block) => block.text)
+                .join('\n')
+                .trim();
+              if (topic) await memoryManager.recordSessionItem('topic', topic);
+              return;
             }
+
+            if (event.type === 'todo/write' && Array.isArray(event.data?.todos)) {
+              const tasks = event.data.todos
+                .filter((todo) => todo && todo.status !== 'completed' && typeof todo.content === 'string')
+                .map((todo) => todo.content.trim())
+                .filter(Boolean);
+              for (const task of tasks) {
+                await memoryManager.recordSessionItem('task', task);
+              }
+            }
+          } catch (error) {
+            console.error('Memory plugin: Failed to record session event:', error.message);
           }
         });
       }

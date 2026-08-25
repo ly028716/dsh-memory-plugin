@@ -319,6 +319,24 @@ test('MemorySettingsCard renders a DSH-style card with six staged checkbox contr
   jest.dontMock('react');
 });
 
+test('renders client settings text using the active English locale', () => {
+  mockReact();
+  const { apply } = loadClient();
+  const ctx = createContext();
+  ctx.locale.getLocale = jest.fn(() => 'en-US');
+
+  apply(ctx);
+
+  const [definition, Card] = ctx.slots.register.mock.calls[0];
+  const element = Card(definition.inject());
+  const rendered = JSON.stringify(element);
+
+  expect(rendered).toContain('Collection');
+  expect(rendered).toContain('Data safety');
+  expect(rendered).toContain('Save');
+  expect(rendered).not.toContain('采集控制');
+});
+
 test('card injection exposes only boolean settings and binding status', () => {
   mockReact();
   const { apply } = loadClient();
@@ -457,7 +475,7 @@ test('registered disposer is safe to invoke', () => {
 test('package verification installs with peers omitted', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'test-package.js'), 'utf8');
   expect(source).toMatch(/runNpm\(\['install',[^\]]*'--omit=peer'/);
-  expect(source).toMatch(/runNpm\(\['install',[^\]]*'--offline'/);
+  expect(source).not.toMatch(/runNpm\(\['install',[^\]]*'--offline'/);
   expect(source).toMatch(/__ModuleLoader__\.load/);
   expect(source).toContain('@ly028716/dsh-memory-plugin');
 });

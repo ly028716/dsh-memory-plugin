@@ -141,6 +141,8 @@ function runNpm(tempDir, registry, args, cwd) {
         ...process.env,
         npm_config_cache: path.join(tempDir, 'npm-cache'),
         npm_config_registry: registry,
+        npm_config_fetch_timeout: '30000',
+        npm_config_fetch_retries: '1',
         npm_config_update_notifier: 'false',
         npm_config_fund: 'false'
       }
@@ -150,7 +152,7 @@ function runNpm(tempDir, registry, args, cwd) {
   }
 }
 
-function installSource(tempDir, registry, consumerDir, source, offline = false) {
+function installSource(tempDir, registry, consumerDir, source) {
   const args = [
     'install',
     '--no-save',
@@ -160,7 +162,6 @@ function installSource(tempDir, registry, consumerDir, source, offline = false) 
     '--no-audit',
     '--no-fund'
   ];
-  if (offline) args.push('--offline');
   args.push(source);
   runNpm(tempDir, registry, args, consumerDir);
 }
@@ -173,7 +174,8 @@ function installFromNpm(tempDir, options, consumerDir) {
 
   for (let attempt = 0; attempt <= options.retries; attempt += 1) {
     try {
-      installSource(tempDir, options.registry, consumerDir, source, Boolean(options.npmTarball));
+      // Local tarballs still need registry resolution for runtime dependencies.
+      installSource(tempDir, options.registry, consumerDir, source);
       return;
     } catch (error) {
       lastError = error;
@@ -190,7 +192,9 @@ function installFromNpm(tempDir, options, consumerDir) {
 function installFromTarball(tempDir, options, consumerDir) {
   const tarball = resolveTarball(options.githubTarball, 'GitHub channel');
   try {
-    installSource(tempDir, options.registry, consumerDir, tarball, true);
+    // The release asset is local, while package dependencies are resolved from
+    // the registry just like a real GitHub tarball installation.
+    installSource(tempDir, options.registry, consumerDir, tarball);
   } catch (error) {
     throw new Error(`GitHub channel installation failed:\n${error.message}`);
   }

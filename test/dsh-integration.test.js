@@ -399,6 +399,31 @@ describe('DSH prompt and tool integration', () => {
     }
   });
 
+  test('contains session history write failures inside the event listener', async () => {
+    const context = createIntegrationContext({ settings: true });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      plugin.apply(context, { storagePath: testFile });
+      await context.services.memory.ready;
+
+      const watch = context.registrationDisposers.settingsScope.watch.mock.calls[0][0];
+      await watch({ trackSessionHistory: true });
+      const sessionListener = context.listeners.find(listener => listener.event === 'session/event');
+
+      await expect(sessionListener.handler({}, {
+        type: 'user/message',
+        data: {
+          source: { kind: 'user' },
+          content: [{ type: 'text', text: 'x'.repeat(10001) }]
+        }
+      })).resolves.toBeUndefined();
+    } finally {
+      errorSpy.mockRestore();
+      await disposeContext(context);
+    }
+  });
+
   test('invalid live settings are rejected without changing runtime state', async () => {
     const context = createIntegrationContext({ settings: true });
     const startAutoSave = jest.spyOn(MemoryManager.prototype, 'startAutoSave');

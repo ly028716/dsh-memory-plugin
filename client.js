@@ -41,7 +41,17 @@
         paused: '已暂停', enabledCount: '已开启 {count}/4 项', noMetrics: '当前会话暂无推荐指标',
         recommendationsRequests: '推荐请求', availableRequests: '可用请求', contextualRequests: '上下文请求',
         contextMatches: '上下文命中', fallbackRequests: '回退请求', suggestions: '建议数',
-        contextMatchRate: '上下文命中率', fallbackRate: '回退率', noData: '暂无数据'
+        contextMatchRate: '上下文命中率', fallbackRate: '回退率', noData: '暂无数据',
+        collapse: '收起', expand: '展开', stateEnabled: '状态：已开启', statePaused: '状态：已暂停',
+        privacyNote: '只允许清除 Memory 内容，不会影响插件配置。',
+        fields: Object.freeze({
+          trackToolCalls: { label: '工具调用', hint: '记录工具使用偏好，帮助改进后续建议' },
+          trackPreferences: { label: '偏好设置', hint: '保存你主动表达的偏好和工作习惯' },
+          trackProjectContext: { label: '项目上下文', hint: '记录当前项目的技术栈和约定' },
+          trackSessionHistory: { label: '会话历史', hint: '允许跨会话引用已确认的记忆' },
+          enableRecommendations: { label: '启用推荐', hint: '在相关任务中显示匹配的记忆' },
+          allowClearMemory: { label: '允许清除 Memory', hint: '允许用户在 Memory 管理页删除已采集内容' }
+        })
       }),
       en: Object.freeze({
         title: 'Memory', description: 'Manage memory collection and recommendations', collection: 'Collection',
@@ -51,7 +61,17 @@
         paused: 'Paused', enabledCount: '{count}/4 enabled', noMetrics: 'No recommendation metrics in this session',
         recommendationsRequests: 'Recommendation requests', availableRequests: 'Available requests', contextualRequests: 'Contextual requests',
         contextMatches: 'Context matches', fallbackRequests: 'Fallback requests', suggestions: 'Suggestions',
-        contextMatchRate: 'Context match rate', fallbackRate: 'Fallback rate', noData: 'No data'
+        contextMatchRate: 'Context match rate', fallbackRate: 'Fallback rate', noData: 'No data',
+        collapse: 'Collapse', expand: 'Expand', stateEnabled: 'Status: enabled', statePaused: 'Status: paused',
+        privacyNote: 'Only Memory content can be cleared; plugin configuration is not affected.',
+        fields: Object.freeze({
+          trackToolCalls: { label: 'Tool calls', hint: 'Record tool usage preferences to improve future recommendations' },
+          trackPreferences: { label: 'Preferences', hint: 'Save preferences and work habits that you express explicitly' },
+          trackProjectContext: { label: 'Project context', hint: 'Record the current project stack and conventions' },
+          trackSessionHistory: { label: 'Session history', hint: 'Allow confirmed memories to be referenced across sessions' },
+          enableRecommendations: { label: 'Enable recommendations', hint: 'Show matching memories for relevant tasks' },
+          allowClearMemory: { label: 'Allow clearing Memory', hint: 'Allow users to delete collected content from the Memory page' }
+        })
       })
     });
 
@@ -68,6 +88,27 @@
       } catch (_error) {
         return undefined;
       }
+    }
+
+    function resolveLocaleDictionary(locale) {
+      const values = [];
+      try {
+        if (typeof locale === 'string') values.push(locale);
+        if (locale && typeof locale.getLocale === 'function') values.push(locale.getLocale());
+        if (locale && typeof locale.getCurrentLocale === 'function') values.push(locale.getCurrentLocale());
+        if (locale && typeof locale.getLanguage === 'function') values.push(locale.getLanguage());
+        values.push(locale?.currentLocale, locale?.locale, locale?.language);
+      } catch (_error) {
+        // A host locale capability is optional and must not break the card.
+      }
+      const localeValue = values.find((value) => typeof value === 'string' && value.trim() !== '');
+      const localeKey = String(localeValue || 'zh').toLowerCase().startsWith('en') ? 'en' : 'zh';
+      return LOCALE_DICTIONARIES[localeKey];
+    }
+
+    function formatMessage(template, replacements = {}) {
+      return String(template || '').replace(/\{(\w+)\}/g, (_match, key) =>
+        Object.prototype.hasOwnProperty.call(replacements, key) ? String(replacements[key]) : `{${key}}`);
     }
 
     function readSnapshot(binding) {
@@ -203,8 +244,9 @@
       };
     }
 
-    function createCardProps(binding, model) {
+    function createCardProps(binding, model, locale) {
       const state = model.getState();
+      const dictionary = resolveLocaleDictionary(locale);
       const fields = SETTINGS_FIELDS.reduce((result, field) => {
         result[field] = {
           type: 'boolean',
@@ -215,13 +257,14 @@
       }, {});
       return {
         namespace: MEMORY_NAMESPACE,
-        title: 'Memory',
-        description: '管理记忆采集和推荐行为',
+        title: dictionary.title,
+        description: dictionary.description,
         fields,
         values: state.values,
         status: state.status,
         collection: state.collection,
         recommendations: state.recommendations,
+        dictionary,
         model
       };
     }
@@ -266,12 +309,12 @@
       disabled: { opacity: 0.4, cursor: 'default' }
     });
 
-    function fieldLabel(field) {
-      return FIELD_DEFINITIONS[field]?.label || field;
+    function fieldLabel(field, dictionary) {
+      return dictionary?.fields?.[field]?.label || FIELD_DEFINITIONS[field]?.label || field;
     }
 
-    function fieldHint(field) {
-      return FIELD_DEFINITIONS[field]?.hint || '';
+    function fieldHint(field, dictionary) {
+      return dictionary?.fields?.[field]?.hint || FIELD_DEFINITIONS[field]?.hint || '';
     }
 
     function renderMetric(React, label, value, key) {
@@ -284,6 +327,7 @@
       const React = loadReact();
       if (!React || typeof React.createElement !== 'function') return null;
 
+      const dictionary = props?.dictionary || LOCALE_DICTIONARIES.zh;
       const model = props?.model;
       const state = model?.getState?.() || {
         values: props?.values || {},
@@ -316,14 +360,14 @@
       const collection = readCollectionStatus(draft);
       const recommendations = state.recommendations;
       const metrics = recommendations ? [
-        ['推荐请求', formatCount(recommendations.requests), 'requests'],
-        ['可用请求', formatCount(recommendations.availableRequests), 'availableRequests'],
-        ['上下文请求', formatCount(recommendations.contextualRequests), 'contextualRequests'],
-        ['上下文命中', formatCount(recommendations.contextMatches), 'contextMatches'],
-        ['回退请求', formatCount(recommendations.fallbackRequests), 'fallbackRequests'],
-        ['建议数', formatCount(recommendations.suggestions), 'suggestions'],
-        ['上下文命中率', formatRate(recommendations.contextMatchRate), 'contextMatchRate'],
-        ['回退率', formatRate(recommendations.fallbackRate), 'fallbackRate']
+        [dictionary.recommendationsRequests, formatCount(recommendations.requests), 'requests'],
+        [dictionary.availableRequests, formatCount(recommendations.availableRequests), 'availableRequests'],
+        [dictionary.contextualRequests, formatCount(recommendations.contextualRequests), 'contextualRequests'],
+        [dictionary.contextMatches, formatCount(recommendations.contextMatches), 'contextMatches'],
+        [dictionary.fallbackRequests, formatCount(recommendations.fallbackRequests), 'fallbackRequests'],
+        [dictionary.suggestions, formatCount(recommendations.suggestions), 'suggestions'],
+        [dictionary.contextMatchRate, formatRate(recommendations.contextMatchRate), 'contextMatchRate'],
+        [dictionary.fallbackRate, formatRate(recommendations.fallbackRate), 'fallbackRate']
       ] : [];
 
       const changeField = (field, value) => {
@@ -358,10 +402,10 @@
           'data-dsh-memory-field': field
         },
         React.createElement('span', { style: styles.fieldText },
-          React.createElement('span', { style: styles.fieldLabel }, fieldLabel(field)),
-          React.createElement('span', { style: styles.fieldHint }, fieldHint(field)),
+          React.createElement('span', { style: styles.fieldLabel }, fieldLabel(field, dictionary)),
+          React.createElement('span', { style: styles.fieldHint }, fieldHint(field, dictionary)),
           FIELD_GROUPS.collection.includes(field)
-            ? React.createElement('span', { style: styles.fieldState }, enabled ? '状态：已开启' : '状态：已暂停')
+            ? React.createElement('span', { style: styles.fieldState }, enabled ? dictionary.stateEnabled : dictionary.statePaused)
             : null),
         React.createElement('input', {
           type: 'checkbox',
@@ -381,45 +425,47 @@
 
       const collectionSummary = React.createElement('div', {
         style: styles.collectionSummary, 'data-dsh-memory': 'collection-status'
-      }, React.createElement('span', null, `自动采集：${collection.automaticCollectionEnabled ? '已开启' : '已暂停'}`), React.createElement('span', { style: styles.summaryState },
-        `已开启 ${collection.enabledCount}/4 项`));
+      }, React.createElement('span', null, formatMessage(`${dictionary.automaticCollection}：{state}`, {
+        state: collection.automaticCollectionEnabled ? dictionary.enabled : dictionary.paused
+      })), React.createElement('span', { style: styles.summaryState },
+        formatMessage(dictionary.enabledCount, { count: collection.enabledCount })));
       const collectionChildren = [collectionSummary, ...FIELD_GROUPS.collection.map((field, index) => renderField(field, index, FIELD_GROUPS.collection))];
       const recommendationChildren = [
         renderField('enableRecommendations', 0, FIELD_GROUPS.recommendations),
         recommendations
           ? React.createElement('div', { key: 'metrics', style: styles.metrics, 'data-dsh-memory': 'recommendation-metrics' }, metrics.map(([label, value, key]) => renderMetric(React, label, value, key)))
-          : React.createElement('div', { key: 'metrics', style: styles.noMetrics, 'data-dsh-memory': 'recommendation-metrics' }, '当前会话暂无推荐指标')
+          : React.createElement('div', { key: 'metrics', style: styles.noMetrics, 'data-dsh-memory': 'recommendation-metrics' }, dictionary.noMetrics)
       ];
       const privacyChildren = [
         renderField('allowClearMemory', 0, FIELD_GROUPS.privacy),
-        React.createElement('p', { key: 'note', style: styles.privacyNote }, '只允许清除 Memory 内容，不会影响插件配置。')
+        React.createElement('p', { key: 'note', style: styles.privacyNote }, dictionary.privacyNote)
       ];
 
       const header = React.createElement('button', {
         type: 'button', style: styles.header, 'aria-expanded': open,
-        'aria-label': `${open ? '收起' : '展开'}: ${props?.title || 'Memory'}`,
+        'aria-label': `${open ? dictionary.collapse : dictionary.expand}: ${props?.title || dictionary.title}`,
         onClick: () => setOpen(!open)
       }, React.createElement('span', { style: styles.headText },
-        React.createElement('span', { style: styles.title }, props?.title || 'Memory'),
-        React.createElement('span', { style: styles.description }, props?.description || '管理记忆采集和推荐行为')),
-      dirty ? React.createElement('span', { style: styles.pending }, '未保存') : null,
+        React.createElement('span', { style: styles.title }, props?.title || dictionary.title),
+        React.createElement('span', { style: styles.description }, props?.description || dictionary.description)),
+      dirty ? React.createElement('span', { style: styles.pending }, dictionary.unsaved) : null,
       React.createElement('span', { style: styleObject(styles.chevron, open ? { transform: 'rotate(180deg)' } : null), 'aria-hidden': true }, '⌄'));
 
       const body = open ? React.createElement('div', { style: styles.body },
-        status.writable === false ? React.createElement('p', { style: styles.readOnly, role: 'status' }, '当前配置为只读，无法修改。') : null,
-        renderSection('collection', '采集控制', FIELD_GROUPS.collection, collectionChildren),
-        renderSection('recommendations', '推荐', FIELD_GROUPS.recommendations, recommendationChildren),
-        renderSection('privacy', '数据安全', FIELD_GROUPS.privacy, privacyChildren),
+        status.writable === false ? React.createElement('p', { style: styles.readOnly, role: 'status' }, dictionary.readOnly) : null,
+        renderSection('collection', dictionary.collection, FIELD_GROUPS.collection, collectionChildren),
+        renderSection('recommendations', dictionary.recommendations, FIELD_GROUPS.recommendations, recommendationChildren),
+        renderSection('privacy', dictionary.privacy, FIELD_GROUPS.privacy, privacyChildren),
         React.createElement('div', { style: styles.footer },
-          failed ? React.createElement('p', { style: styles.failure, role: 'status' }, '保存失败，请稍后重试。') : null,
+          failed ? React.createElement('p', { style: styles.failure, role: 'status' }, dictionary.saveFailed) : null,
           React.createElement('button', {
             type: 'button', style: styleObject(styles.button, styles.discard, (!dirty || saving) ? styles.disabled : null),
             disabled: !dirty || saving, onClick: discard
-          }, '放弃修改'),
+          }, dictionary.discard),
           React.createElement('button', {
             type: 'button', style: styleObject(styles.button, styles.save, (!dirty || disabled) ? styles.disabled : null),
             disabled: !dirty || disabled, onClick: save
-          }, saving ? '保存中…' : '保存'))
+          }, saving ? dictionary.saving : dictionary.save))
       ) : null;
 
       return React.createElement('li', { 'data-dsh-memory': MEMORY_NAMESPACE, style: styles.card }, header, body);
@@ -437,6 +483,7 @@
 
     function apply(ctx) {
       const slots = getCapability(ctx, 'slots');
+      const locale = getCapability(ctx, 'locale');
       const settingsScope = getCapability(ctx, 'settingsScope');
       if (!slots || typeof slots.inject !== 'function' || typeof slots.register !== 'function') return undefined;
       if (!settingsScope || typeof settingsScope.bind !== 'function') return undefined;
@@ -460,7 +507,7 @@
             name: SLOT_NAME,
             key: MEMORY_NAMESPACE,
             locale: MEMORY_LOCALE_NAMESPACE,
-            inject: () => createCardProps(binding, model)
+            inject: () => createCardProps(binding, model, locale)
           }, MemorySettingsCard);
           return slotDispose;
         });

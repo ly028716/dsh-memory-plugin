@@ -25,9 +25,11 @@ function runNpm(args, cwd) {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
-        ...process.env,
-        npm_config_cache: path.join(tempDir, 'npm-cache'),
-        npm_config_update_notifier: 'false',
+            ...process.env,
+            npm_config_cache: path.join(tempDir, 'npm-cache'),
+            npm_config_fetch_timeout: '30000',
+            npm_config_fetch_retries: '1',
+            npm_config_update_notifier: 'false',
         npm_config_fund: 'false'
       }
     });
@@ -51,7 +53,9 @@ try {
   if (!fs.existsSync(artifactPath)) throw new Error('Package artifact was not created');
 
   runNpm(['init', '--yes'], packageDir);
-  runNpm(['install', '--offline', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
+  // The package is installed from the local tarball, but its runtime
+  // dependencies still need to be resolved from the configured registry.
+  runNpm(['install', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
 
   const installedRoot = path.join(packageDir, 'node_modules', packageJson.name);
   const clientSource = fs.readFileSync(path.join(installedRoot, 'client.js'), 'utf8');

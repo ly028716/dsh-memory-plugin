@@ -105,7 +105,7 @@ Release。
 smoke 会检查插件入口、DSH bundle patch、doctor CLI 和 viewer 资源。`GH_TOKEN` 由 GitHub Actions
 提供，仅用于创建、下载和公开 GitHub Release，无需人工配置。
 
-本地可在无网络环境中用同一个 tarball 模拟两个渠道：
+本地可用同一个 tarball 模拟两个渠道；安装时仍需访问配置的 npm registry 解析运行时依赖：
 
 ```bash
 npm pack --pack-destination dist
