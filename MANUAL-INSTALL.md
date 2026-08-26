@@ -31,7 +31,7 @@ doctor 默认只读检查；`--fix` 只把 DSH 共享 `profiles/node_modules` �
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # 当前已推送的 pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
 ```
 
 ### 方法 1：在 DSH 配置文件中引用（推荐）
@@ -44,7 +44,7 @@ module.exports = {
   plugins: [
     {
       name: 'memory',
-      path: 'E:\\IDEWorkplaces\\DeepSeekHarness\\memory-plugin',
+      path: '<project-root>',
       config: {
         storagePath: '.dsh-memory.json',
         maxHistoryItems: 100,
@@ -66,7 +66,7 @@ module.exports = {
 
 ```powershell
 # 使用完整的 Node.js 路径运行 DSH
-node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js plugin --profile web add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+node <path-to-dsh-cli>/lib/bin.js plugin --profile web add <project-root>
 ```
 
 注意：需要指定一个已存在的 profile 名称（如 `web`）。
@@ -76,7 +76,7 @@ node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js plugin --profi
 在你的 JavaScript/TypeScript 代码中：
 
 ```javascript
-const memoryPlugin = require('E:/IDEWorkplaces/DeepSeekHarness/memory-plugin');
+const memoryPlugin = require('<project-root>');
 
 // 创建 DSH context（或复用现有的）
 const ctx = { /* your DSH context */ };
@@ -100,12 +100,12 @@ if (ctx.memory) {
 
 ```powershell
 # 临时添加（当前会话）
-$env:Path += ";E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib"
+$env:Path += ";<path-to-dsh-cli>\lib"
 
 # 永久添加（需要管理员权限）
 [Environment]::SetEnvironmentVariable(
     "Path", 
-    $env:Path + ";E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib", 
+    $env:Path + ";<path-to-dsh-cli>\lib",
     "User"
 )
 ```
@@ -114,7 +114,7 @@ $env:Path += ";E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib"
 
 ```batch
 @echo off
-node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js %*
+node <path-to-dsh-cli>\lib\bin.js %*
 ```
 
 将此文件放在 PATH 中的某个目录（如 `C:\Windows` 或用户目录）。
@@ -124,7 +124,7 @@ node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js %*
 ### 测试 1：快速验证
 
 ```bash
-cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+cd <project-root>
 node test-quick.js
 ```
 
@@ -138,7 +138,7 @@ node test-quick.js
 ### 测试 2：集成测试
 
 ```bash
-cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+cd <project-root>
 node test-integration.js
 ```
 
@@ -153,7 +153,7 @@ node test-integration.js
 ### 测试 3：功能演示
 
 ```bash
-cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+cd <project-root>
 node demo.js
 ```
 
@@ -238,7 +238,7 @@ await ctx.memory.clearMemory();
 **错误**：`Cannot find module`
 
 **解决**：
-1. 确认路径正确：`E:\IDEWorkplaces\DeepSeekHarness\memory-plugin`
+1. 确认路径正确：`<project-root>`
 2. 确认 `index.js` 文件存在
 3. 使用绝对路径而非相对路径
 

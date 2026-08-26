@@ -102,14 +102,14 @@ dsh plugin --profile <name> add @ly028716/dsh-memory-plugin
 ```javascript
 {
   name: 'memory',
-  path: 'E:\\IDEWorkplaces\\DeepSeekHarness\\memory-plugin'
+  path: '<project-root>'
 }
 ```
 
 ### 选项 C：开发模式测试
 直接在代码中引用：
 ```javascript
-const memoryPlugin = require('E:/IDEWorkplaces/DeepSeekHarness/memory-plugin');
+const memoryPlugin = require('<project-root>');
 memoryPlugin.apply(ctx, config);
 ```
 

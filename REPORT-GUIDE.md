@@ -61,7 +61,7 @@
 ## 📍 报告位置
 
 ```
-E:\IDEWorkplaces\DeepSeekHarness\memory-plugin\memory-report.html
+<project-root>\memory-report.html
 ```
 
 ## 🔍 如何查看

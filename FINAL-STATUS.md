@@ -37,7 +37,7 @@
 
 1. **DSH 命令不在 PATH 中**
    - `dsh` 命令未添加到系统环境变量
-   - 需要使用完整路径：`node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js`
+   - 如果 `dsh` 不在 PATH 中，需要使用 DSH CLI 的完整入口路径：`node <path-to-dsh-cli>/lib/bin.js`
 
 2. **Profile 权限问题**
    - 尝试写入 `C:\Users\Administrator\.dsh\profiles\web` 时出现 EPERM 错误
@@ -47,14 +47,14 @@
 
 #### 方法 1：使用完整 DSH CLI 路径
 ```powershell
-node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js plugin --profile web add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+node <path-to-dsh-cli>/lib/bin.js plugin --profile web add <project-root>
 ```
 **结果**：❌ EPERM 权限错误
 
 #### 方法 2：直接使用 pnpm
 ```powershell
 cd C:\Users\Administrator\.dsh\profiles\web
-pnpm add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+pnpm add <project-root>
 ```
 **结果**：❌ EPERM 权限错误
 
@@ -72,7 +72,7 @@ node ... plugin --profile default add ...
 
 ```javascript
 // 在你的 DSH 启动代码或配置中
-const memoryPlugin = require('E:/IDEWorkplaces/DeepSeekHarness/memory-plugin');
+    const memoryPlugin = require('<project-root>');
 
 // 应用插件
 memoryPlugin.apply(ctx, {
@@ -99,16 +99,16 @@ memoryPlugin.apply(ctx, {
 ```powershell
 # 方法 A：添加到用户 PATH
 $oldPath = [Environment]::GetEnvironmentVariable("Path", "User")
-$newPath = $oldPath + ";E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib"
+$newPath = $oldPath + ";<path-to-dsh-cli>\lib"
 [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
 
 # 方法 B：创建别名
-New-Alias -Name dsh -Value "node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js" -Scope Global
+New-Alias -Name dsh -Value "node <path-to-dsh-cli>\lib\bin.js" -Scope Global
 ```
 
 然后重新打开终端，就可以使用：
 ```bash
-dsh plugin --profile web add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+dsh plugin --profile web add <project-root>
 ```
 
 ### 方案 3：创建批处理包装器
@@ -117,7 +117,7 @@ dsh plugin --profile web add E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
 
 ```batch
 @echo off
-node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js %*
+node <path-to-dsh-cli>\lib\bin.js %*
 ```
 
 然后将 `C:\Users\Administrator` 添加到 PATH，或直接使用该路径。
@@ -138,7 +138,7 @@ node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js %*
 
 1. **直接测试**
    ```bash
-   cd E:\IDEWorkplaces\DeepSeekHarness\memory-plugin
+   cd <project-root>
    node test-quick.js      # 快速测试
    node demo.js            # 功能演示
    node test-integration.js # 集成测试
@@ -146,7 +146,7 @@ node E:\IDEWorkplaces\GitHub\deepseek-harness\apps\cli\lib\bin.js %*
 
 2. **在代码中使用**
    ```javascript
-   const plugin = require('./memory-plugin');
+       const plugin = require('<project-root>');
    plugin.apply(ctx, config);
    ```
 

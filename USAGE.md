@@ -39,7 +39,7 @@ module.exports = {
   plugins: [
     {
       name: 'memory',
-      path: './memory-plugin',
+      path: '<project-root>',
       config: {
         storagePath: '.dsh-memory.json',
         trackToolCalls: true,

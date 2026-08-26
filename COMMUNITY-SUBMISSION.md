@@ -50,7 +50,7 @@ CI、审计和复现环境：
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # 当前已推送的 pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
 ```
 
 `<40-character-commit-sha>` 必须替换成完整 40 位 SHA；短 SHA、浮动分支或未固定的 GitHub spec 不属于 pinned commit 安装。
@@ -60,7 +60,7 @@ dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d4
 ```bash
 npm test -- --runInBand
 npm run check
-DSH_PINNED_COMMIT=6fce10ecf9cd796d46a7848aec7af07ff1ff0e18 npm run test:pinned-commit
+DSH_PINNED_COMMIT=408fadeeac2746051084e8e8c28d3c285c637b4e npm run test:pinned-commit
 npm run test:package
 git diff --check
 ```
@@ -68,7 +68,7 @@ git diff --check
 上面的命令适用于 Bash；如果你在 Windows PowerShell 中执行，请使用下面的写法设置并清理临时环境变量：
 
 ```powershell
-$env:DSH_PINNED_COMMIT = '6fce10ecf9cd796d46a7848aec7af07ff1ff0e18'
+$env:DSH_PINNED_COMMIT = '408fadeeac2746051084e8e8c28d3c285c637b4e'
 npm run test:pinned-commit
 Remove-Item Env:DSH_PINNED_COMMIT
 ```

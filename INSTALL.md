@@ -32,7 +32,7 @@ module.exports = {
   plugins: [
     {
       name: 'memory',
-      path: 'E:\\IDEWorkplaces\\DeepSeekHarness\\memory-plugin',
+      path: '<project-root>',
       config: {
         storagePath: '.dsh-memory.json',
         maxHistoryItems: 100,
@@ -52,7 +52,7 @@ module.exports = {
 
 ```bash
 # 本地源码
-dsh plugin --profile <name> add E:\IDEWorkplaces\DeepSeekHarness\dsh-memory-plugin
+dsh plugin --profile <name> add <project-root>
 
 # CI/复现：将 <full-40-char-sha> 替换为完整 commit SHA
 dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plugin.git#<full-40-char-sha>"
@@ -61,7 +61,7 @@ dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plug
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # 当前已推送的 pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
 ```
 
 GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应在 profile 目录中执行

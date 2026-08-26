@@ -1,79 +1,63 @@
 @echo off
 chcp 65001 >nul
+setlocal
+
 echo ========================================
 echo   Push dsh-memory-plugin to GitHub
 echo ========================================
 echo.
 
-cd /d E:\IDEWorkplaces\DeepSeekHarness\dsh-memory-plugin
-
-echo Step 1: Adding safe directory exception...
-git config --global --add safe.directory E:/IDEWorkplaces/DeepSeekHarness/dsh-memory-plugin
+cd /d "%~dp0"
 if errorlevel 1 (
-    echo [ERROR] Failed to add safe directory. Please run as administrator.
-    pause
+    echo [ERROR] Failed to enter the repository directory.
     exit /b 1
 )
-echo [OK] Safe directory added
-echo.
 
-echo Step 2: Adding files to git...
-git add .
+git rev-parse --show-toplevel >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Failed to add files.
-    pause
+    echo [ERROR] This script must be run from a Git repository.
     exit /b 1
 )
-echo [OK] Files added
-echo.
 
-echo Step 3: Creating initial commit...
-git commit -m "Initial commit: dsh-memory-plugin v1.0.0
-
-- Intelligent memory system for DSH
-- Track user preferences and tool usage  
-- Provide personalized recommendations
-- Complete documentation and examples
-- Modern web UI viewer"
+git remote get-url origin >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Failed to commit.
-    pause
+    echo [ERROR] Git remote 'origin' is not configured.
+    echo         Configure it with: git remote add origin ^<repository-url^>
     exit /b 1
 )
-echo [OK] Commit created
-echo.
 
-echo Step 4: Setting branch name to main...
-git branch -M main
-echo [OK] Branch renamed to main
-echo.
-
-echo Step 5: Adding remote repository...
-git remote add origin git@github.com:ly028716/dsh-memory-plugin.git
+echo Step 1: Staging changes...
+git add -A
 if errorlevel 1 (
-    echo [INFO] Remote may already exist, continuing...
-)
-echo [OK] Remote added
-echo.
-
-echo Step 6: Pushing to GitHub...
-git push -u origin main
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Push failed. Possible reasons:
-    echo   - SSH key not configured
-    echo   - Network connection issue
-    echo   - Repository doesn't exist on GitHub
-    echo.
-    echo Please check your GitHub SSH configuration and try again.
-    pause
+    echo [ERROR] Failed to stage files.
     exit /b 1
 )
+
+git diff --cached --quiet
+if not errorlevel 1 (
+    echo [INFO] No changes to commit.
+    exit /b 0
+)
+
+set "COMMIT_MESSAGE=%~1"
+if not defined COMMIT_MESSAGE set "COMMIT_MESSAGE=chore: update dsh-memory-plugin"
+
+echo Step 2: Creating commit...
+git commit -m "%COMMIT_MESSAGE%"
+if errorlevel 1 (
+    echo [ERROR] Failed to create commit.
+    exit /b 1
+)
+
+echo Step 3: Pushing current branch...
+git push origin HEAD
+if errorlevel 1 (
+    echo [ERROR] Push failed. Check the remote URL, credentials, and network connection.
+    exit /b 1
+)
+
 echo.
 echo ========================================
 echo   [SUCCESS] Code pushed to GitHub!
 echo ========================================
-echo.
-echo Repository: https://github.com/ly028716/dsh-memory-plugin
-echo.
-pause
+endlocal

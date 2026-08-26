@@ -2,7 +2,7 @@
 
 ## 📦 项目概览
 
-已成功在 `E:\IDEWorkplaces\DeepSeekHarness\memory-plugin\` 目录下完成"记忆系统"插件的开发。
+已成功在 `<project-root>/` 目录下完成“记忆系统”插件的开发。
 
 ## 🏗️ 文件结构
 
@@ -104,14 +104,14 @@ memory-plugin/
 ### 安装插件
 ```bash
 # 方式 1: 作为本地插件
-dsh plugin --profile <name> add ../memory-plugin
+dsh plugin --profile <name> add <project-root>
 
 # 方式 2: 在配置中引用
 # dsh.config.js
 module.exports = {
   plugins: [{
     name: 'memory',
-    path: './memory-plugin'
+    path: '<project-root>'
   }]
 }
 ```

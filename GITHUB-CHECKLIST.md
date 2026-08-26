@@ -28,30 +28,18 @@
 
 ## 🚀 提交步骤
 
+以下命令应在仓库根目录执行；如果仓库已经配置好 `origin`，无需重复初始化 Git 或添加远程仓库。
+
 ```bash
-# 1. 进入项目目录
-cd E:\IDEWorkplaces\DeepSeekHarness\dsh-memory-plugin
+# 查看待提交变更
+git status --short
 
-# 2. 初始化 git（如果还没有）
-git init
-
-# 3. 添加远程仓库
-git remote add origin git@github.com:ly028716/dsh-memory-plugin.git
-
-# 4. 添加所有文件
+# 添加并提交本次变更
 git add .
+git commit -m "chore: update dsh-memory-plugin"
 
-# 5. 提交
-git commit -m "Initial commit: dsh-memory-plugin v1.0.0
-
-- Intelligent memory system for DSH
-- Track user preferences and tool usage
-- Provide personalized recommendations
-- Complete documentation and examples"
-
-# 6. 推送到 GitHub
-git branch -M main
-git push -u origin main
+# 推送当前 main 分支
+git push origin main
 ```
 
 ## 📋 推荐的文件结构

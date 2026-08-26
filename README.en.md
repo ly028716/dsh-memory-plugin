@@ -95,7 +95,7 @@ dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plug
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # Current pinned commit (CI/audit)
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#6fce10ecf9cd796d46a7848aec7af07ff1ff0e18
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
 ```
 
 #### Release maintainers: post-release installation verification

@@ -24,7 +24,6 @@ echo.
 
 REM 查找 DSH Home 目录
 echo 🔍 正在查找 DSH 配置目录...
-set DSH_HOME=
 if defined DSH_HOME (
     echo ✅ 找到 DSH_HOME: %DSH_HOME%
 ) else if exist "%USERPROFILE%\.dsh" (

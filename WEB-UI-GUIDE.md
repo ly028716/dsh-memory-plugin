@@ -11,7 +11,7 @@
 ### 方法 1：双击批处理文件（最简单）
 
 ```
-双击: E:\IDEWorkplaces\DeepSeekHarness\memory-plugin\open-viewer.cmd
+双击: <project-root>\open-viewer.cmd
 ```
 
 这会自动在浏览器中打开查看器页面。
@@ -19,7 +19,7 @@
 ### 方法 2：直接打开 HTML 文件
 
 ```
-打开: E:\IDEWorkplaces\DeepSeekHarness\memory-plugin\viewer.html
+打开: <project-root>\viewer.html
 ```
 
 在浏览器中直接打开这个 HTML 文件。
