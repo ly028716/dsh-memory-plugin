@@ -43,6 +43,8 @@ describe('Config Validation', () => {
     expect(() => validateConfig({ autoSaveInterval: '5000' })).toThrow('autoSaveInterval must be a positive number');
     expect(() => validateConfig({ autoSaveInterval: NaN })).toThrow('autoSaveInterval must be a finite number');
     expect(() => validateConfig({ autoSaveInterval: Infinity })).toThrow('autoSaveInterval must be a finite number');
+    expect(() => validateConfig({ autoSaveInterval: 1.5 })).toThrow('autoSaveInterval must be a positive integer');
+    expect(() => validateConfig({ autoSaveInterval: 2 ** 31 })).toThrow('autoSaveInterval must not exceed 2147483647 milliseconds');
   });
 
   test('should throw error for invalid boolean flags', () => {

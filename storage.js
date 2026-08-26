@@ -6,6 +6,9 @@
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const { redactSensitiveData } = require('./privacy');
 const { INPUT_LIMITS, assertDataWithinLimits } = require('./limits');
 const { CURRENT_DATA_VERSION, CURRENT_SCHEMA_VERSION, migrateData } = require('./migrations');
@@ -14,6 +17,17 @@ const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 const LOCK_RETRY_INTERVAL_MS = 25;
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_STALE_AFTER_MS = 30000;
+const ATOMIC_REPLACE_MAX_ATTEMPTS = 4;
+const ATOMIC_REPLACE_RETRY_INTERVAL_MS = 25;
+const execFileAsync = promisify(execFile);
+
+function isTransientWindowsReplaceError(error) {
+  return process.platform === 'win32' && ['EACCES', 'EBUSY', 'EPERM'].includes(error?.code);
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function parseDotPath(dotPath) {
   if (typeof dotPath !== 'string' || dotPath.trim() === '') {
@@ -211,6 +225,32 @@ class MemoryStorage {
     } catch (error) {
       if (process.platform !== 'win32' || !['EPERM', 'ENOSYS'].includes(error.code)) throw error;
     }
+
+    if (process.platform !== 'win32') return;
+
+    const username = os.userInfo().username;
+    if (!username) throw new Error('Unable to determine the Windows user for memory file permissions');
+    await execFileAsync('icacls', [
+      filePath,
+      '/inheritance:r',
+      '/grant:r', `${username}:(F)`,
+      '/grant:r', '*S-1-5-18:(F)',
+      '/grant:r', '*S-1-5-32-544:(F)'
+    ]);
+  }
+
+  async replaceFileAtomically(tempPath, destination = this.storagePath) {
+    for (let attempt = 0; attempt < ATOMIC_REPLACE_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        await fs.rename(tempPath, destination);
+        return;
+      } catch (error) {
+        if (!isTransientWindowsReplaceError(error) || attempt === ATOMIC_REPLACE_MAX_ATTEMPTS - 1) {
+          throw error;
+        }
+        await wait(ATOMIC_REPLACE_RETRY_INTERVAL_MS * (attempt + 1));
+      }
+    }
   }
 
   async writeSnapshot(snapshot) {
@@ -227,7 +267,7 @@ class MemoryStorage {
         await handle.close();
       }
       await this.setPrivateFileMode(tempPath);
-      await fs.rename(tempPath, this.storagePath);
+      await this.replaceFileAtomically(tempPath);
       await this.setPrivateFileMode(this.storagePath);
     } finally {
       try {
@@ -497,6 +537,56 @@ class MemoryStorage {
   increment(dotPath, amount = 1) {
     const current = this.get(dotPath) || 0;
     this.set(dotPath, current + amount);
+  }
+
+  async recordSessionStart() {
+    return this.mutatePersisted('metadata', (metadata) => {
+      const nextMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? metadata
+        : {};
+      const totalSessions = Number.isSafeInteger(nextMetadata.totalSessions) && nextMetadata.totalSessions >= 0
+        ? nextMetadata.totalSessions
+        : 0;
+      nextMetadata.totalSessions = totalSessions + 1;
+      nextMetadata.lastSessionDate = new Date().toISOString();
+      return nextMetadata;
+    });
+  }
+
+  async addPreferredTool(toolName) {
+    if (typeof toolName !== 'string' || toolName.trim() === '') {
+      throw new Error('toolName must be a non-empty string');
+    }
+
+    return this.mutatePersisted('inputHabits.preferredTools', (current) => {
+      const tools = Array.isArray(current) ? current : [];
+      if (!tools.includes(toolName)) tools.push(toolName);
+      return tools;
+    });
+  }
+
+  async recordCommandUsage(command, maxLength) {
+    if (typeof command !== 'string') throw new Error('command must be a string');
+    if (!Number.isSafeInteger(maxLength) || maxLength <= 0) {
+      throw new Error('maxLength must be a positive integer');
+    }
+
+    return this.mutatePersisted('inputHabits.commonCommands', (current) => {
+      const commands = Array.isArray(current) ? current : [];
+      const existingIndex = commands.findIndex((entry) => entry && entry.command === command);
+      const now = new Date().toISOString();
+
+      if (existingIndex >= 0) {
+        const existing = commands[existingIndex];
+        existing.count = Number.isSafeInteger(existing.count) && existing.count >= 0 ? existing.count + 1 : 1;
+        existing.lastUsed = now;
+      } else {
+        commands.unshift({ command, count: 1, firstUsed: now, lastUsed: now });
+      }
+
+      commands.sort((left, right) => right.count - left.count);
+      return commands.slice(0, maxLength);
+    });
   }
 
   /**

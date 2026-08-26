@@ -70,9 +70,7 @@ class MemoryManager {
 
       // Update session metadata
       if (automaticCollectionEnabled) {
-        this.storage.increment('metadata.totalSessions');
-        this.storage.set('metadata.lastSessionDate', new Date().toISOString());
-        await this.storage.save();
+        await this.storage.recordSessionStart();
       }
       await this.lifecycle.applyRetention();
     })();
@@ -152,19 +150,9 @@ class MemoryManager {
     // Record tool usage statistics
     await this.storage.recordToolUsage(name);
     
-    // Track preferred tools
-    let preferredToolsChanged = false;
     if (this.config.trackPreferences) {
-      const preferredTools = this.storage.get('inputHabits.preferredTools') || [];
-      
-      if (!preferredTools.includes(name)) {
-        preferredTools.push(name);
-        this.storage.set('inputHabits.preferredTools', preferredTools);
-        preferredToolsChanged = true;
-      }
+      await this.storage.addPreferredTool(name);
     }
-
-    if (preferredToolsChanged) await this.storage.save();
     
     // Analyze command patterns
     if (args && args.command) {
@@ -184,33 +172,7 @@ class MemoryManager {
 
     await this.ensureInitialized();
     const safeCommand = redactSensitiveData(command);
-    const commonCommands = this.storage.get('inputHabits.commonCommands') || [];
-    
-    // Check if command already exists
-    const existingIndex = commonCommands.findIndex(cmd => cmd.command === safeCommand);
-    
-    if (existingIndex >= 0) {
-      // Increment count
-      commonCommands[existingIndex].count++;
-      commonCommands[existingIndex].lastUsed = new Date().toISOString();
-    } else {
-      // Add new command
-      commonCommands.unshift({
-        command: safeCommand,
-        count: 1,
-        firstUsed: new Date().toISOString(),
-        lastUsed: new Date().toISOString()
-      });
-    }
-    
-    // Sort by frequency and trim
-    commonCommands.sort((a, b) => b.count - a.count);
-    if (commonCommands.length > this.config.maxHistoryItems) {
-      commonCommands.splice(this.config.maxHistoryItems);
-    }
-    
-    this.storage.set('inputHabits.commonCommands', commonCommands);
-    await this.storage.save();
+    await this.storage.recordCommandUsage(safeCommand, this.config.maxHistoryItems);
   }
 
   /**

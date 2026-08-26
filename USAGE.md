@@ -59,7 +59,7 @@ module.exports = {
 
 ## 数据迁移、备份与恢复
 
-记忆 JSON 文件会在加载时自动前向迁移。已有主文件默认会在启动迁移前生成本地启动快照，目录为 `<storagePath>.backups`；也可以通过 `backupDir` 指定目录。
+记忆 JSON 文件会在加载时自动前向迁移。已有主文件默认会在启动迁移前生成本地启动快照，目录为 `<storagePath>.backups`；也可以通过 `backupDir` 指定目录。Windows 会移除记忆文件和备份的继承 ACL，并向当前用户、`SYSTEM` 和管理员组授予访问权限；已有显式 ACL 仍由文件所有者管理，管理员可继续用于恢复数据。
 
 ```javascript
 const snapshot = await ctx.memory.backup();

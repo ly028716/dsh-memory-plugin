@@ -37,6 +37,14 @@ describe('DataLifecycleManager', () => {
     expect(JSON.parse(await fs.readFile(result.path, 'utf8'))).toEqual(storage.exportData());
   });
 
+  test('uses the storage atomic replacement retry for backup snapshots', async () => {
+    const replaceSpy = jest.spyOn(storage, 'replaceFileAtomically');
+
+    const result = await lifecycle.backup('manual');
+
+    expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining(`${result.path}.`), result.path);
+  });
+
   test('rejects restore paths outside the backup directory', async () => {
     await expect(lifecycle.restoreBackup('../memory.json')).rejects.toThrow('Invalid backup name');
   });

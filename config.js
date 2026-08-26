@@ -3,6 +3,8 @@
  * Validates and provides default configuration for the memory plugin.
  */
 
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
 const DEFAULT_CONFIG = {
   // Storage settings
   storagePath: '.dsh-memory.json',
@@ -75,6 +77,12 @@ function validateConfig(userConfig = {}) {
   }
   if (config.autoSaveInterval <= 0) {
     throw new Error('autoSaveInterval must be a positive number');
+  }
+  if (!Number.isSafeInteger(config.autoSaveInterval)) {
+    throw new Error('autoSaveInterval must be a positive integer');
+  }
+  if (config.autoSaveInterval > MAX_TIMEOUT_MS) {
+    throw new Error(`autoSaveInterval must not exceed ${MAX_TIMEOUT_MS} milliseconds`);
   }
   
   // Validate boolean flags

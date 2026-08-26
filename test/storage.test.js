@@ -194,6 +194,27 @@ describe('MemoryStorage', () => {
       expect(reloaded.get('userPreferences.defaultModel')).toBe('concurrent-model');
     });
 
+    test('should retry a transient Windows lock while replacing a snapshot', async () => {
+      storage.set('userPreferences.defaultModel', 'retry-model');
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+      const privateModeSpy = jest.spyOn(storage, 'setPrivateFileMode').mockResolvedValue();
+      const renameSpy = jest.spyOn(fs, 'rename');
+      const transientError = Object.assign(new Error('file is temporarily locked'), { code: 'EPERM' });
+      renameSpy.mockRejectedValueOnce(transientError);
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+
+      try {
+        await expect(storage.save()).resolves.toBeUndefined();
+        expect(renameSpy).toHaveBeenCalledTimes(2);
+      } finally {
+        Object.defineProperty(process, 'platform', originalPlatform);
+        renameSpy.mockRestore();
+        privateModeSpy.mockRestore();
+      }
+
+      expect(await fs.readFile(testFile, 'utf8')).toContain('retry-model');
+    });
+
     test('should recover from a stale lock and leave no lock file', async () => {
       const lockPath = `${testFile}.lock`;
       await fs.writeFile(lockPath, 'stale');

@@ -99,6 +99,23 @@ describe('MemoryManager', () => {
       expect(pendingStorage.get('userPreferences.defaultModel')).toBe('pending-model');
       await pendingManager.dispose();
     });
+
+    test('counts sessions started by concurrent managers sharing one memory file', async () => {
+      const sharedFile = path.join(testDir, 'concurrent-sessions.json');
+      const seed = new MemoryStorage(sharedFile);
+      await seed.initialize();
+
+      const sharedConfig = validateConfig({ ...config, storagePath: sharedFile, backupOnInitialize: false });
+      const first = new MemoryManager(sharedConfig, new MemoryStorage(sharedFile));
+      const second = new MemoryManager(sharedConfig, new MemoryStorage(sharedFile));
+      await Promise.all([first.initialize(), second.initialize()]);
+
+      const reloaded = new MemoryStorage(sharedFile);
+      await reloaded.initialize();
+      expect(reloaded.get('metadata.totalSessions')).toBe(2);
+
+      await Promise.all([first.dispose(), second.dispose()]);
+    });
   });
 
   describe('Tool Call Recording', () => {
@@ -134,6 +151,25 @@ describe('MemoryManager', () => {
       const reloaded = new MemoryStorage(testFile);
       await reloaded.initialize();
       expect(reloaded.get('inputHabits.preferredTools')).toEqual(['glob']);
+    });
+
+    test('preserves concurrent preferred tools and command histories across managers', async () => {
+      const secondStorage = new MemoryStorage(testFile);
+      const secondManager = new MemoryManager(config, secondStorage);
+      await secondManager.initialize();
+
+      await Promise.all([
+        manager.recordToolCall({ name: 'read', args: { command: 'npm test' } }),
+        secondManager.recordToolCall({ name: 'write', args: { command: 'git status' } })
+      ]);
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('inputHabits.preferredTools').sort()).toEqual(['read', 'write']);
+      expect(reloaded.get('inputHabits.commonCommands').map((entry) => entry.command).sort())
+        .toEqual(['git status', 'npm test']);
+
+      await secondManager.dispose();
     });
 
     test('should analyze commands', async () => {

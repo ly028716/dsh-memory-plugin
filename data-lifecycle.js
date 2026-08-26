@@ -64,6 +64,14 @@ class DataLifecycleManager {
     }
   }
 
+  async replaceFileAtomically(temporary, destination) {
+    if (typeof this.storage.replaceFileAtomically === 'function') {
+      await this.storage.replaceFileAtomically(temporary, destination);
+      return;
+    }
+    await fs.rename(temporary, destination);
+  }
+
   async writeSnapshot(data, reason, raw = false) {
     await this.ensureBackupDir();
     const timestamp = new Date().toISOString().replace(/[-:.]/g, '').replace('Z', 'Z');
@@ -88,7 +96,7 @@ class DataLifecycleManager {
         await handle.close();
       }
       await this.setPrivateFileMode(temporary);
-      await fs.rename(temporary, destination);
+      await this.replaceFileAtomically(temporary, destination);
       await this.setPrivateFileMode(destination);
       const stat = await fs.stat(destination);
       return {

@@ -179,7 +179,7 @@ console.log(stats);
 
 ### Data migration, backup, and restore
 
-Memory files are migrated forward to the current data version during loading. When a storage file already exists, startup creates a raw pre-migration snapshot in `.dsh-memory.json.backups/` by default. Backups remain local and use atomic writes with private file permissions.
+Memory files are migrated forward to the current data version during loading. When a storage file already exists, startup creates a raw pre-migration snapshot in `.dsh-memory.json.backups/` by default. Backups remain local and use atomic writes with private file permissions. On Windows, the plugin removes inherited ACLs and grants access to the current user, `SYSTEM`, and the Administrators group; administrators retain recovery access. File owners continue to manage any existing explicit ACLs.
 
 ```javascript
 // Create and list snapshots, then restore a selected snapshot
