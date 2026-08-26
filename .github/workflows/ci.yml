@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install DSH CLI for real integration E2E
+        run: npm install --global @deepseek-ai/dsh@0.1.1-rc.2 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+
       - name: Unit tests
         run: npm test -- --runInBand
 
@@ -67,6 +70,8 @@ jobs:
         run: npm run test:pinned-commit
 
       - name: DSH clean-profile E2E
+        env:
+          DSH_E2E_REQUIRED: 1
         run: npm run test:dsh-e2e
 
       - name: Package dry run

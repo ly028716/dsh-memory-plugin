@@ -282,6 +282,18 @@ describe('release CI configuration', () => {
     }
   });
 
+  test('should install the compatible DSH CLI and require the real DSH E2E in CI and release workflows', () => {
+    const rootDir = path.join(__dirname, '..');
+    const ciWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'ci.yml'), 'utf8');
+    const releaseWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'release.yml'), 'utf8');
+    const installCommand = 'npm install --global @deepseek-ai/dsh@0.1.1-rc.2 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org';
+
+    for (const workflow of [ciWorkflow, releaseWorkflow]) {
+      expect(workflow).toContain(installCommand);
+      expect(workflow).toContain('DSH_E2E_REQUIRED: 1');
+    }
+  });
+
   test('should use the scoped package in DSH installation guidance', () => {
     const rootDir = path.join(__dirname, '..');
     const installCommand = 'dsh plugin --profile <name> add @ly028716/dsh-memory-plugin';

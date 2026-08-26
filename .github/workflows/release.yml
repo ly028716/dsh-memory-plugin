@@ -27,10 +27,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install DSH CLI for real integration E2E
+        run: npm install --global @deepseek-ai/dsh@0.1.1-rc.2 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+
       - name: Install Chromium for browser E2E
         run: npx playwright install --with-deps chromium
 
       - name: Verify source and package
+        env:
+          DSH_E2E_REQUIRED: 1
         run: |
           npm run check
           npm test -- --runInBand
