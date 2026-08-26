@@ -475,6 +475,7 @@ test('registered disposer is safe to invoke', () => {
 test('package verification installs with peers omitted', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'test-package.js'), 'utf8');
   expect(source).toMatch(/runNpm\(\['install',[^\]]*'--omit=peer'/);
+  expect(source).toMatch(/runNpm\(\['install',[^\]]*'--legacy-peer-deps'/);
   expect(source).not.toMatch(/runNpm\(\['install',[^\]]*'--offline'/);
   expect(source).toMatch(/__ModuleLoader__\.load/);
   expect(source).toContain('@ly028716/dsh-memory-plugin');

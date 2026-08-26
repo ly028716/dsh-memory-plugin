@@ -159,6 +159,7 @@ function installSource(tempDir, registry, consumerDir, source) {
     '--package-lock=false',
     '--ignore-scripts',
     '--omit=peer',
+    '--legacy-peer-deps',
     '--no-audit',
     '--no-fund'
   ];

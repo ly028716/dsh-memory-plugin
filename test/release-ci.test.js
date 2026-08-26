@@ -36,6 +36,8 @@ describe('release CI configuration', () => {
     expect(packageJson.scripts['test:package']).toBe('node test-package.js');
     expect(packageJson.scripts['test:pinned-commit']).toBe('node test-pinned-commit.js');
     expect(packageJson.scripts['test:dsh-e2e']).toBe('node test-dsh-e2e.js');
+    expect(packageJson.scripts['test:audit'])
+      .toBe('npm audit --audit-level=high --registry=https://registry.npmjs.org');
     expect(packageJson.engines.node).toBe('>=20');
   });
 
@@ -87,6 +89,20 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('--version "$release_version"');
     expect(workflow).toContain('--github-tarball "$github_tarball"');
     expect(workflow).toContain('test -n "$github_tarball"');
+  });
+
+  test('should make networked verification scripts independent of the local npm mirror', () => {
+    const rootDir = path.join(__dirname, '..');
+    for (const fileName of ['test-package.js', 'test-pinned-commit.js', 'test-dsh-e2e.js']) {
+      const source = fs.readFileSync(path.join(rootDir, fileName), 'utf8');
+      expect(source).toContain("npm_config_registry: process.env.DSH_TEST_REGISTRY || 'https://registry.npmjs.org'");
+      expect(source).toContain("npm_config_fetch_timeout: '30000'");
+      expect(source).toContain("npm_config_fetch_retries: '1'");
+    }
+    expect(fs.readFileSync(path.join(rootDir, 'test-package.js'), 'utf8'))
+      .toContain("'--legacy-peer-deps'");
+    expect(fs.readFileSync(path.join(rootDir, 'test-release-install.js'), 'utf8'))
+      .toContain("'--legacy-peer-deps'");
   });
 
   test('should resolve runtime dependencies from the registry for local tarball verification', () => {

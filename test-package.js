@@ -25,11 +25,12 @@ function runNpm(args, cwd) {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
-            ...process.env,
-            npm_config_cache: path.join(tempDir, 'npm-cache'),
-            npm_config_fetch_timeout: '30000',
-            npm_config_fetch_retries: '1',
-            npm_config_update_notifier: 'false',
+        ...process.env,
+        npm_config_registry: process.env.DSH_TEST_REGISTRY || 'https://registry.npmjs.org',
+        npm_config_cache: path.join(tempDir, 'npm-cache'),
+        npm_config_fetch_timeout: '30000',
+        npm_config_fetch_retries: '1',
+        npm_config_update_notifier: 'false',
         npm_config_fund: 'false'
       }
     });
@@ -55,7 +56,7 @@ try {
   runNpm(['init', '--yes'], packageDir);
   // The package is installed from the local tarball, but its runtime
   // dependencies still need to be resolved from the configured registry.
-  runNpm(['install', '--omit=peer', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
+  runNpm(['install', '--omit=peer', '--legacy-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund', artifactPath], packageDir);
 
   const installedRoot = path.join(packageDir, 'node_modules', packageJson.name);
   const clientSource = fs.readFileSync(path.join(installedRoot, 'client.js'), 'utf8');

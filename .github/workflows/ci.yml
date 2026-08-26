@@ -73,4 +73,4 @@ jobs:
         run: npm pack --dry-run
 
       - name: Dependency audit
-        run: npm audit --audit-level=high
+        run: npm run test:audit

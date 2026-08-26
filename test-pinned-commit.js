@@ -23,7 +23,10 @@ function run(command, args, cwd) {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
+      npm_config_registry: process.env.DSH_TEST_REGISTRY || 'https://registry.npmjs.org',
       npm_config_cache: path.join(tempDir, 'npm-cache'),
+      npm_config_fetch_timeout: '30000',
+      npm_config_fetch_retries: '1',
       npm_config_update_notifier: 'false',
       npm_config_fund: 'false'
     }
@@ -99,6 +102,7 @@ try {
   runNpm([
     'install',
     '--ignore-scripts',
+    '--legacy-peer-deps',
     '--no-audit',
     '--no-fund',
     '--package-lock=false',
