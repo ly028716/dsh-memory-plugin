@@ -62,6 +62,24 @@ describe('DataLifecycleManager', () => {
     expect((await lifecycle.listBackups()).length).toBe(2);
   });
 
+  test('recovers the latest valid backup and quarantines a corrupt primary file', async () => {
+    const backup = await lifecycle.backup('manual');
+    await fs.writeFile(testFile, '{not valid json', 'utf8');
+
+    const recoveringStorage = new MemoryStorage(testFile);
+    const recoveringLifecycle = new DataLifecycleManager(recoveringStorage, {
+      backupDir,
+      backupRetentionDays: 30,
+      backupRetentionCount: 10
+    });
+    const recovery = await recoveringLifecycle.recoverFromLatestBackup();
+
+    expect(recovery.restored).toBe(backup.name);
+    expect(recoveringStorage.get('userPreferences.defaultModel')).toBe('original');
+    await expect(fs.access(recovery.quarantined)).resolves.toBeUndefined();
+    expect(JSON.parse(await fs.readFile(testFile, 'utf8')).userPreferences.defaultModel).toBe('original');
+  });
+
   test('retains recent snapshots by age and count without deleting unrelated files', async () => {
     await fs.mkdir(backupDir, { recursive: true });
     await fs.writeFile(path.join(backupDir, 'memory-old-manual.json'), '{}');

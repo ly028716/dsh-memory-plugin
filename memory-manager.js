@@ -10,6 +10,10 @@ const path = require('path');
 const { redactSensitiveData, redactProjectPath } = require('./privacy');
 const { INPUT_LIMITS, assertTextLength, assertDataWithinLimits } = require('./limits');
 
+function isRecoverableMemoryFileError(error) {
+  return error instanceof SyntaxError || error?.message === 'Invalid memory data format';
+}
+
 class MemoryManager {
   constructor(config, storage) {
     this.config = config;
@@ -46,10 +50,21 @@ class MemoryManager {
           if (error.code !== 'ENOENT') throw error;
         }
       }
-      await this.storage.initialize({
-        persistIfMissing: automaticCollectionEnabled,
-        persistSanitized: automaticCollectionEnabled
-      });
+      try {
+        await this.storage.initialize({
+          persistIfMissing: automaticCollectionEnabled,
+          persistSanitized: automaticCollectionEnabled
+        });
+      } catch (error) {
+        if (!isRecoverableMemoryFileError(error)) throw error;
+        try {
+          const recovery = await this.lifecycle.recoverFromLatestBackup();
+          console.warn(`Memory plugin: Recovered corrupt memory from backup ${recovery.restored}`);
+        } catch (recoveryError) {
+          error.recoveryError = recoveryError;
+          throw error;
+        }
+      }
       if (automaticCollectionEnabled) this.startAutoSave();
       this.sessionStartTime = Date.now();
 
@@ -138,14 +153,18 @@ class MemoryManager {
     await this.storage.recordToolUsage(name);
     
     // Track preferred tools
+    let preferredToolsChanged = false;
     if (this.config.trackPreferences) {
       const preferredTools = this.storage.get('inputHabits.preferredTools') || [];
       
       if (!preferredTools.includes(name)) {
         preferredTools.push(name);
         this.storage.set('inputHabits.preferredTools', preferredTools);
+        preferredToolsChanged = true;
       }
     }
+
+    if (preferredToolsChanged) await this.storage.save();
     
     // Analyze command patterns
     if (args && args.command) {

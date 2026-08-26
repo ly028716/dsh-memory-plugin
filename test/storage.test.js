@@ -245,6 +245,53 @@ describe('MemoryStorage', () => {
       await expect(fs.access(`${testFile}.lock`)).rejects.toThrow();
     });
 
+    test('should accumulate concurrent counter increments from separate storage instances', async () => {
+      const first = new MemoryStorage(testFile);
+      const second = new MemoryStorage(testFile);
+      await Promise.all([first.initialize(), second.initialize()]);
+
+      await Promise.all([
+        first.recordToolUsage('read'),
+        second.recordToolUsage('read')
+      ]);
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('sessionHistory.toolUsageStats')).toEqual({ read: 2 });
+    });
+
+    test('should preserve concurrent array appends from separate storage instances', async () => {
+      const first = new MemoryStorage(testFile);
+      const second = new MemoryStorage(testFile);
+      await Promise.all([first.initialize(), second.initialize()]);
+
+      await Promise.all([
+        first.appendToArray('sessionHistory.recentTopics', { content: 'first' }, 10),
+        second.appendToArray('sessionHistory.recentTopics', { content: 'second' }, 10)
+      ]);
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('sessionHistory.recentTopics').map((entry) => entry.content).sort())
+        .toEqual(['first', 'second']);
+    });
+
+    test('should preserve concurrent project additions from separate storage instances', async () => {
+      const first = new MemoryStorage(testFile);
+      const second = new MemoryStorage(testFile);
+      await Promise.all([first.initialize(), second.initialize()]);
+
+      await Promise.all([
+        first.addProject({ path: '/first', name: 'First' }),
+        second.addProject({ path: '/second', name: 'Second' })
+      ]);
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('projectContext.activeProjects').map((project) => project.path).sort())
+        .toEqual(['/first', '/second']);
+    });
+
     test('should restrict persisted file permissions on supported platforms', async () => {
       if (process.platform === 'win32') return;
 

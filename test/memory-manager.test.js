@@ -69,6 +69,26 @@ describe('MemoryManager', () => {
       await concurrentManager.dispose();
     });
 
+    test('should recover from the latest valid backup when the primary file is corrupt', async () => {
+      const recoveryFile = path.join(testDir, 'recovery-memory.json');
+      const recoveryConfig = validateConfig({ ...config, storagePath: recoveryFile });
+      const originalStorage = new MemoryStorage(recoveryFile);
+      const originalManager = new MemoryManager(recoveryConfig, originalStorage);
+      await originalManager.initialize();
+      await originalManager.recordPreference('defaultModel', 'recovered-model');
+      await originalManager.backup('manual');
+      await originalManager.dispose();
+
+      await fs.writeFile(recoveryFile, '{not valid json', 'utf8');
+
+      const recoveringStorage = new MemoryStorage(recoveryFile);
+      const recoveringManager = new MemoryManager(recoveryConfig, recoveringStorage);
+      await recoveringManager.initialize();
+
+      expect(recoveringStorage.get('userPreferences.defaultModel')).toBe('recovered-model');
+      await recoveringManager.dispose();
+    });
+
     test('should wait for initialization before recording data', async () => {
       const pendingStorage = new MemoryStorage(testFile + '-pending');
       const pendingManager = new MemoryManager(config, pendingStorage);
@@ -102,6 +122,18 @@ describe('MemoryManager', () => {
       
       const tools = storage.get('inputHabits.preferredTools');
       expect(tools).toContain('glob');
+    });
+
+    test('should persist preferred tools after a tool call without a command', async () => {
+      await manager.recordToolCall({
+        name: 'glob',
+        args: {},
+        result: []
+      });
+
+      const reloaded = new MemoryStorage(testFile);
+      await reloaded.initialize();
+      expect(reloaded.get('inputHabits.preferredTools')).toEqual(['glob']);
     });
 
     test('should analyze commands', async () => {

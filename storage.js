@@ -213,6 +213,31 @@ class MemoryStorage {
     }
   }
 
+  async writeSnapshot(snapshot) {
+    const tempPath = `${this.storagePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+    const content = JSON.stringify(snapshot, null, 2);
+    assertDataWithinLimits(snapshot, 'memory file', INPUT_LIMITS.maxMemoryFileBytes);
+
+    try {
+      const handle = await fs.open(tempPath, 'w', 0o600);
+      try {
+        await handle.writeFile(content, 'utf8');
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await this.setPrivateFileMode(tempPath);
+      await fs.rename(tempPath, this.storagePath);
+      await this.setPrivateFileMode(this.storagePath);
+    } finally {
+      try {
+        await fs.unlink(tempPath);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+  }
+
   assertInitialized() {
     if (!this.memory) {
       throw new Error('Memory not initialized. Call initialize() first.');
@@ -311,7 +336,6 @@ class MemoryStorage {
     snapshot.lastUpdated = new Date().toISOString();
     const dirtyPaths = [...this._dirtyPaths];
     const replaceOnSave = this._replaceOnSave;
-    const tempPath = `${this.storagePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
 
     const operation = this._saveQueue.then(async () => {
       await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
@@ -332,18 +356,7 @@ class MemoryStorage {
           }
         }
 
-        const content = JSON.stringify(persistedSnapshot, null, 2);
-        assertDataWithinLimits(persistedSnapshot, 'memory file', INPUT_LIMITS.maxMemoryFileBytes);
-        const handle = await fs.open(tempPath, 'w', 0o600);
-        try {
-          await handle.writeFile(content, 'utf8');
-          await handle.sync();
-        } finally {
-          await handle.close();
-        }
-        await this.setPrivateFileMode(tempPath);
-        await fs.rename(tempPath, this.storagePath);
-        await this.setPrivateFileMode(this.storagePath);
+        await this.writeSnapshot(persistedSnapshot);
 
         if (this._dirtyVersion === version) {
           this.memory = cloneData(persistedSnapshot);
@@ -352,11 +365,6 @@ class MemoryStorage {
           this._replaceOnSave = false;
         }
       } finally {
-        try {
-          await fs.unlink(tempPath);
-        } catch (error) {
-          if (error.code !== 'ENOENT') throw error;
-        }
         await this.releaseLock(ownerToken);
       }
     });
@@ -367,6 +375,45 @@ class MemoryStorage {
 
   async flush() {
     await this._saveQueue;
+  }
+
+  async readPersistedSnapshot() {
+    try {
+      const latestContent = await fs.readFile(this.storagePath, 'utf8');
+      const latestParsed = JSON.parse(latestContent);
+      assertDataWithinLimits(latestParsed, 'memory file', INPUT_LIMITS.maxMemoryFileBytes);
+      return mergeDefaults(DEFAULT_MEMORY, redactSensitiveData(migrateData(latestParsed)));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      return cloneData(this.memory);
+    }
+  }
+
+  async mutatePersisted(dotPath, mutate) {
+    this.assertInitialized();
+    parseDotPath(dotPath);
+    if (typeof mutate !== 'function') throw new Error('mutate must be a function');
+
+    const operation = this._saveQueue.then(async () => {
+      await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
+      const ownerToken = await this.acquireLock();
+      try {
+        const persistedSnapshot = await this.readPersistedSnapshot();
+        const nextValue = redactSensitiveData(mutate(cloneData(getPathValue(persistedSnapshot, dotPath))));
+        assertDataWithinLimits(nextValue, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
+        setPathValue(persistedSnapshot, dotPath, nextValue);
+        persistedSnapshot.lastUpdated = new Date().toISOString();
+        await this.writeSnapshot(persistedSnapshot);
+
+        setPathValue(this.memory, dotPath, nextValue);
+        this.memory.lastUpdated = persistedSnapshot.lastUpdated;
+      } finally {
+        await this.releaseLock(ownerToken);
+      }
+    });
+
+    this._saveQueue = operation.catch(() => {});
+    return operation;
   }
 
   /**
@@ -431,22 +478,15 @@ class MemoryStorage {
    * @param {number} maxLength - Maximum length of the array (optional)
    */
   async appendToArray(dotPath, item, maxLength = null) {
-    let array = this.get(dotPath) || [];
-    
-    if (!Array.isArray(array)) {
-      array = [];
-    }
-    
-    // Add new item to the beginning
-    array.unshift(item);
-    
-    // Trim if maxLength is specified
-    if (maxLength && array.length > maxLength) {
-      array = array.slice(0, maxLength);
-    }
-    
-    this.set(dotPath, array);
-    await this.save();
+    return this.mutatePersisted(dotPath, (current) => {
+      let array = Array.isArray(current) ? current : [];
+      array.unshift(item);
+
+      if (maxLength && array.length > maxLength) {
+        array = array.slice(0, maxLength);
+      }
+      return array;
+    });
   }
 
   /**
@@ -464,10 +504,19 @@ class MemoryStorage {
    * @param {string} toolName - Name of the tool
    */
   async recordToolUsage(toolName) {
-    const stats = this.get('sessionHistory.toolUsageStats') || {};
-    stats[toolName] = (stats[toolName] || 0) + 1;
-    this.set('sessionHistory.toolUsageStats', stats);
-    await this.save();
+    this.assertInitialized();
+    if (typeof toolName !== 'string' || toolName.trim() === '') {
+      throw new Error('toolName must be a non-empty string');
+    }
+    assertSafeKey(toolName);
+    return this.mutatePersisted('sessionHistory.toolUsageStats', (stats) => {
+      const nextStats = stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : {};
+      const currentCount = Number.isSafeInteger(nextStats[toolName]) && nextStats[toolName] >= 0
+        ? nextStats[toolName]
+        : 0;
+      nextStats[toolName] = currentCount + 1;
+      return nextStats;
+    });
   }
 
   /**
@@ -475,34 +524,26 @@ class MemoryStorage {
    * @param {Object} project - Project information
    */
   async addProject(project) {
-    const projects = this.get('projectContext.activeProjects') || [];
-    
-    // Check if project already exists
-    const existingIndex = projects.findIndex(p => p.path === project.path);
-    
-    if (existingIndex >= 0) {
-      // Update existing project
-      projects[existingIndex] = {
-        ...projects[existingIndex],
-        ...project,
-        lastAccessed: new Date().toISOString()
-      };
-    } else {
-      // Add new project
-      projects.unshift({
-        ...project,
-        lastAccessed: new Date().toISOString()
-      });
-    }
-    
-    // Keep only recent projects
-    const maxProjects = 20;
-    if (projects.length > maxProjects) {
-      projects.splice(maxProjects);
-    }
-    
-    this.set('projectContext.activeProjects', projects);
-    await this.save();
+    return this.mutatePersisted('projectContext.activeProjects', (current) => {
+      const projects = Array.isArray(current) ? current : [];
+      const existingIndex = projects.findIndex((existing) => existing.path === project.path);
+
+      if (existingIndex >= 0) {
+        projects[existingIndex] = {
+          ...projects[existingIndex],
+          ...project,
+          lastAccessed: new Date().toISOString()
+        };
+      } else {
+        projects.unshift({
+          ...project,
+          lastAccessed: new Date().toISOString()
+        });
+      }
+
+      if (projects.length > 20) projects.splice(20);
+      return projects;
+    });
   }
 
   /**
@@ -547,9 +588,13 @@ class MemoryStorage {
    */
   async importData(data) {
     assertDataWithinLimits(data, 'import data', INPUT_LIMITS.maxMemoryFileBytes);
-    const migrated = migrateData(data);
-    
     await this.initialize();
+    await this.replaceData(data);
+  }
+
+  async replaceData(data) {
+    assertDataWithinLimits(data, 'import data', INPUT_LIMITS.maxMemoryFileBytes);
+    const migrated = migrateData(data);
     this.memory = mergeDefaults(DEFAULT_MEMORY, redactSensitiveData(migrated));
     this.markDirty();
     await this.save();

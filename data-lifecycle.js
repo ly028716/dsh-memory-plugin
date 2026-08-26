@@ -177,6 +177,43 @@ class DataLifecycleManager {
     return { restored: name, safetyBackup, retention };
   }
 
+  async quarantinePrimaryFile() {
+    const source = this.storage.storagePath;
+    const timestamp = new Date().toISOString().replace(/[-:.]/g, '').replace('Z', 'Z');
+    const token = crypto.randomBytes(4).toString('hex');
+    const destination = `${source}.corrupt-${timestamp}-${token}`;
+
+    try {
+      await fs.rename(source, destination);
+      await this.setPrivateFileMode(destination);
+      return destination;
+    } catch (error) {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    }
+  }
+
+  async recoverFromLatestBackup() {
+    if (typeof this.storage.replaceData !== 'function') {
+      throw new Error('storage must support replaceData for recovery');
+    }
+
+    const backups = await this.listBackups();
+    const skipped = [];
+    for (const backup of backups) {
+      try {
+        const { data } = await this.readBackup(backup.name);
+        const quarantined = await this.quarantinePrimaryFile();
+        await this.storage.replaceData(data);
+        return { restored: backup.name, quarantined, skipped };
+      } catch (error) {
+        skipped.push({ name: backup.name, reason: error.message });
+      }
+    }
+
+    throw new Error('No valid memory backup is available for recovery');
+  }
+
   async applyRetention() {
     const backups = await this.listBackups();
     const cutoff = Date.now() - this.backupRetentionDays * 24 * 60 * 60 * 1000;

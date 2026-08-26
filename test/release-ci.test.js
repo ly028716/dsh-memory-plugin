@@ -50,6 +50,17 @@ describe('release CI configuration', () => {
     expect(fs.existsSync(path.join(__dirname, '..', 'playwright.config.js'))).toBe(true);
   });
 
+  test('runs clean-profile and browser verification on Windows with an isolated npm cache', () => {
+    const workflow = readWorkflow(path.join(__dirname, '..', '.github', 'workflows', 'ci.yml'));
+
+    expect(workflow).toContain('os: windows-latest');
+    expect(workflow).toContain('runs-on: ${{ matrix.os }}');
+    expect(workflow).toContain('NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache');
+    expect(workflow).toContain('npx playwright install ${{ matrix.playwright_args }} chromium');
+    expect(workflow).toContain('DSH_E2E_REQUIRED: 1');
+    expect(workflow).not.toMatch(/uses:\s+[^\n]+@v\d/);
+  });
+
   test('should verify npm registry and GitHub Release tarball installations after publishing', () => {
     const rootDir = path.join(__dirname, '..');
     const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
@@ -274,8 +285,12 @@ describe('release CI configuration', () => {
     const ciWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'ci.yml'), 'utf8');
     const releaseWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'release.yml'), 'utf8');
 
+    expect(ciWorkflow).toContain('playwright_args: --with-deps');
+    expect(ciWorkflow).toContain("playwright_args: ''");
+    expect(ciWorkflow).toContain('npx playwright install ${{ matrix.playwright_args }} chromium');
+    expect(releaseWorkflow).toContain('npx playwright install --with-deps chromium');
+
     for (const workflow of [ciWorkflow, releaseWorkflow]) {
-      expect(workflow).toContain('npx playwright install --with-deps chromium');
       expect(workflow).toContain('npm run test:browser-e2e');
       expect(workflow).toContain('playwright-report/');
       expect(workflow).toContain('test-results/');
