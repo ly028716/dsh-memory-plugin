@@ -56,6 +56,33 @@ describe('memory agent tool', () => {
     }));
   });
 
+  test('search returns only entries that match the supplied query', async () => {
+    const memory = createMemory({
+      exportData: jest.fn(() => ({
+        userPreferences: { defaultModel: 'unrelated-model' },
+        projectContext: {
+          activeProjects: [{ name: 'unrelated-project', path: '/unrelated' }]
+        },
+        sessionHistory: {
+          recentTopics: [
+            { content: 'target deployment procedure' },
+            { content: 'unrelated database notes' }
+          ],
+          frequentTasks: []
+        },
+        inputHabits: { preferredTools: ['unrelated-tool'] }
+      }))
+    });
+
+    const result = await createMemoryTool(memory).execute({ action: 'search', query: 'deployment' }, exec());
+
+    expect(result.text).toContain('target deployment procedure');
+    expect(result.text).not.toContain('unrelated-model');
+    expect(result.text).not.toContain('unrelated-project');
+    expect(result.text).not.toContain('unrelated database notes');
+    expect(result.text).not.toContain('unrelated-tool');
+  });
+
   test('marks deferred tool results as untrusted user-controlled data', async () => {
     const contextExec = exec();
     await createMemoryTool(createMemory()).execute({ action: 'search' }, contextExec);

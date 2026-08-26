@@ -17,6 +17,7 @@ const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 const LOCK_RETRY_INTERVAL_MS = 25;
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_STALE_AFTER_MS = 30000;
+const LOCK_HEARTBEAT_INTERVAL_MS = Math.floor(LOCK_STALE_AFTER_MS / 3);
 const ATOMIC_REPLACE_MAX_ATTEMPTS = 4;
 const ATOMIC_REPLACE_RETRY_INTERVAL_MS = 25;
 const execFileAsync = promisify(execFile);
@@ -160,8 +161,65 @@ class MemoryStorage {
     this._initializePromise = null;
     this._saveQueue = Promise.resolve();
     this.lockPath = `${this.storagePath}.lock`;
+    this.lockMetadataPath = path.join(this.lockPath, 'owner.json');
     this._dirtyPaths = new Set();
     this._replaceOnSave = false;
+    this._lockHeartbeats = new Map();
+  }
+
+  startLockHeartbeat(ownerToken) {
+    const timer = setInterval(() => {
+      void this.refreshLockHeartbeat(ownerToken);
+    }, LOCK_HEARTBEAT_INTERVAL_MS);
+    timer.unref?.();
+    this._lockHeartbeats.set(ownerToken, timer);
+  }
+
+  stopLockHeartbeat(ownerToken) {
+    const timer = this._lockHeartbeats.get(ownerToken);
+    if (timer) clearInterval(timer);
+    this._lockHeartbeats.delete(ownerToken);
+  }
+
+  async readLockData() {
+    try {
+      const content = await fs.readFile(this.lockMetadataPath, 'utf8');
+      return JSON.parse(content);
+    } catch (error) {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
+      const content = await fs.readFile(this.lockPath, 'utf8');
+      return JSON.parse(content);
+    }
+  }
+
+  async refreshLockHeartbeat(ownerToken) {
+    try {
+      const lockData = await this.readLockData();
+      if (lockData.ownerToken !== ownerToken) {
+        this.stopLockHeartbeat(ownerToken);
+        return;
+      }
+      const now = new Date();
+      await fs.utimes(this.lockPath, now, now);
+    } catch (error) {
+      if (error.code === 'ENOENT' || error instanceof SyntaxError) {
+        this.stopLockHeartbeat(ownerToken);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async reclaimStaleLock() {
+    const stalePath = `${this.lockPath}.stale.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}`;
+    try {
+      await fs.rename(this.lockPath, stalePath);
+      await fs.rm(stalePath, { recursive: true, force: true });
+      return true;
+    } catch (error) {
+      if (error.code === 'ENOENT') return false;
+      throw error;
+    }
   }
 
   async acquireLock() {
@@ -170,16 +228,22 @@ class MemoryStorage {
 
     while (Date.now() - startedAt < LOCK_TIMEOUT_MS) {
       try {
-        const handle = await fs.open(this.lockPath, 'wx');
+        await fs.mkdir(this.lockPath);
         try {
-          await handle.writeFile(JSON.stringify({
+          await fs.writeFile(this.lockMetadataPath, JSON.stringify({
             pid: process.pid,
             ownerToken,
             createdAt: new Date().toISOString()
-          }), 'utf8');
-        } finally {
-          await handle.close();
+          }), { encoding: 'utf8', flag: 'wx' });
+        } catch (error) {
+          try {
+            await fs.rmdir(this.lockPath);
+          } catch (cleanupError) {
+            if (!['ENOENT', 'ENOTEMPTY'].includes(cleanupError.code)) throw cleanupError;
+          }
+          throw error;
         }
+        this.startLockHeartbeat(ownerToken);
         return ownerToken;
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
@@ -187,8 +251,7 @@ class MemoryStorage {
         try {
           const lockStat = await fs.stat(this.lockPath);
           if (Date.now() - lockStat.mtimeMs > LOCK_STALE_AFTER_MS) {
-            await fs.unlink(this.lockPath);
-            continue;
+            if (await this.reclaimStaleLock()) continue;
           }
         } catch (statError) {
           if (statError.code !== 'ENOENT') throw statError;
@@ -203,19 +266,17 @@ class MemoryStorage {
 
   async releaseLock(ownerToken) {
     if (typeof ownerToken !== 'string' || ownerToken.length === 0) return;
+    this.stopLockHeartbeat(ownerToken);
 
     try {
-      const content = await fs.readFile(this.lockPath, 'utf8');
-      let lockData;
-      try {
-        lockData = JSON.parse(content);
-      } catch (error) {
-        return;
-      }
+      const lockData = await this.readLockData();
       if (lockData.ownerToken !== ownerToken) return;
-      await fs.unlink(this.lockPath);
+      const confirmedLockData = await this.readLockData();
+      if (confirmedLockData.ownerToken !== ownerToken) return;
+      await fs.unlink(this.lockMetadataPath);
+      await fs.rmdir(this.lockPath);
     } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+      if (!['ENOENT', 'ENOTEMPTY'].includes(error.code) && !(error instanceof SyntaxError)) throw error;
     }
   }
 

@@ -48,6 +48,46 @@ function categoryProjection(data, category) {
   return { sessionHistory: { frequentTasks: data.sessionHistory?.frequentTasks } };
 }
 
+function matchesQuery(value, query) {
+  try {
+    if (typeof value === 'string') return value.toLowerCase().includes(query);
+    if (Array.isArray(value)) return value.some((item) => matchesQuery(item, query));
+    if (value && typeof value === 'object') return Object.values(value).some((item) => matchesQuery(item, query));
+  } catch (_error) {
+    return false;
+  }
+  return false;
+}
+
+function filterMemoryByQuery(data, query) {
+  const normalizedQuery = typeof query === 'string' ? query.trim().toLowerCase() : '';
+  if (!normalizedQuery || !data || typeof data !== 'object' || Array.isArray(data)) return data;
+
+  const filtered = {};
+  const defaultModel = data.userPreferences?.defaultModel;
+  if (matchesQuery(defaultModel, normalizedQuery)) {
+    filtered.userPreferences = { defaultModel };
+  }
+
+  const activeProjects = (data.projectContext?.activeProjects || [])
+    .filter((project) => matchesQuery(project, normalizedQuery));
+  if (activeProjects.length > 0) filtered.projectContext = { activeProjects };
+
+  const recentTopics = (data.sessionHistory?.recentTopics || [])
+    .filter((topic) => matchesQuery(topic, normalizedQuery));
+  const frequentTasks = (data.sessionHistory?.frequentTasks || [])
+    .filter((task) => matchesQuery(task, normalizedQuery));
+  if (recentTopics.length > 0 || frequentTasks.length > 0) {
+    filtered.sessionHistory = { recentTopics, frequentTasks };
+  }
+
+  const preferredTools = (data.inputHabits?.preferredTools || [])
+    .filter((tool) => matchesQuery(tool, normalizedQuery));
+  if (preferredTools.length > 0) filtered.inputHabits = { preferredTools };
+
+  return filtered;
+}
+
 function createMemoryTool(memory, config = {}) {
   const tool = {
     name: 'memory',
@@ -103,8 +143,8 @@ function createMemoryTool(memory, config = {}) {
           if (args.category !== undefined && !CATEGORIES.includes(args.category)) return errorResult();
           let exported = {};
           if (memory && typeof memory.exportData === 'function') exported = memory.exportData() || {};
-          let text = buildMemoryContext(categoryProjection(exported, args.category));
-          if (args.query && !text.toLowerCase().includes(args.query.toLowerCase())) text = '';
+          const projected = categoryProjection(exported, args.category);
+          const text = buildMemoryContext(filterMemoryByQuery(projected, args.query));
           result = { ok: true, action: 'search', text };
         } else if (args.action === 'remember') {
           if (!CATEGORIES.includes(args.category)) return errorResult();

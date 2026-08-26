@@ -228,6 +228,59 @@ describe('MemoryStorage', () => {
       await expect(fs.access(lockPath)).rejects.toThrow();
     });
 
+    test('should start a heartbeat while a storage lock is held', async () => {
+      const setIntervalSpy = jest.spyOn(global, 'setInterval');
+
+      try {
+        const ownerToken = await storage.acquireLock();
+        expect(setIntervalSpy).toHaveBeenCalled();
+        expect((await fs.stat(`${testFile}.lock`)).isDirectory()).toBe(true);
+        await storage.releaseLock(ownerToken);
+      } finally {
+        setIntervalSpy.mockRestore();
+      }
+    });
+
+    test('should remove a newly created lock directory when writing its metadata fails', async () => {
+      const originalWriteFile = fs.writeFile.bind(fs);
+      const writeFileSpy = jest.spyOn(fs, 'writeFile').mockImplementationOnce(async (...args) => {
+        if (args[0] === storage.lockMetadataPath) {
+          throw Object.assign(new Error('metadata write failed'), { code: 'EACCES' });
+        }
+        return originalWriteFile(...args);
+      });
+
+      try {
+        await expect(storage.acquireLock()).rejects.toMatchObject({ code: 'EACCES' });
+      } finally {
+        writeFileSpy.mockRestore();
+      }
+
+      await expect(fs.access(`${testFile}.lock`)).rejects.toThrow();
+    });
+
+    test('should not remove a lock that changed owners during release', async () => {
+      const lockPath = `${testFile}.lock`;
+      const ownerToken = await storage.acquireLock();
+      const originalReadFile = fs.readFile.bind(fs);
+      const readFileSpy = jest.spyOn(fs, 'readFile').mockImplementationOnce(async (...args) => {
+        const content = await originalReadFile(...args);
+        await fs.rm(lockPath, { recursive: true, force: true });
+        await fs.mkdir(lockPath);
+        await fs.writeFile(path.join(lockPath, 'owner.json'), JSON.stringify({ ownerToken: 'new-owner' }), 'utf8');
+        return content;
+      });
+
+      try {
+        await storage.releaseLock(ownerToken);
+      } finally {
+        readFileSpy.mockRestore();
+      }
+
+      expect(JSON.parse(await fs.readFile(path.join(lockPath, 'owner.json'), 'utf8')).ownerToken).toBe('new-owner');
+      await fs.rm(lockPath, { recursive: true, force: true });
+    });
+
     test('should only release a lock when the owner token matches', async () => {
       const lockPath = `${testFile}.lock`;
       const ownerToken = await storage.acquireLock();
