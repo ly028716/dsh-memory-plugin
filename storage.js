@@ -10,7 +10,7 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { redactSensitiveData } = require('./privacy');
-const { INPUT_LIMITS, assertDataWithinLimits } = require('./limits');
+const { INPUT_LIMITS, assertDataWithinLimits, trimArrayToLimits } = require('./limits');
 const { CURRENT_DATA_VERSION, CURRENT_SCHEMA_VERSION, migrateData } = require('./migrations');
 
 const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
@@ -490,8 +490,8 @@ class MemoryStorage {
     }
   }
 
-  async mutatePersisted(dotPath, mutate) {
-    return this.mutatePersistedBatch([{ dotPath, mutate }]);
+  async mutatePersisted(dotPath, mutate, options = {}) {
+    return this.mutatePersistedBatch([{ dotPath, mutate, ...options }]);
   }
 
   async mutatePersistedBatch(mutations) {
@@ -506,6 +506,14 @@ class MemoryStorage {
       }
       parseDotPath(mutation.dotPath);
       if (typeof mutation.mutate !== 'function') throw new Error('mutate must be a function');
+      if (mutation.maxArrayLength !== undefined && mutation.maxArrayLength !== null
+        && (!Number.isSafeInteger(mutation.maxArrayLength) || mutation.maxArrayLength <= 0)) {
+        throw new Error('maxArrayLength must be a positive integer');
+      }
+      if (mutation.maxArrayBytes !== undefined && mutation.maxArrayBytes !== null
+        && (!Number.isSafeInteger(mutation.maxArrayBytes) || mutation.maxArrayBytes <= 0)) {
+        throw new Error('maxArrayBytes must be a positive integer');
+      }
       return mutation;
     });
 
@@ -515,8 +523,13 @@ class MemoryStorage {
       try {
         const persistedSnapshot = await this.readPersistedSnapshot();
         const appliedMutations = [];
-        for (const { dotPath, mutate } of normalizedMutations) {
-          const nextValue = redactSensitiveData(mutate(cloneData(getPathValue(persistedSnapshot, dotPath))));
+        for (const { dotPath, mutate, maxArrayLength, maxArrayBytes } of normalizedMutations) {
+          let nextValue = redactSensitiveData(mutate(cloneData(getPathValue(persistedSnapshot, dotPath))));
+          if (Array.isArray(nextValue)
+            && (maxArrayLength !== undefined && maxArrayLength !== null
+              || maxArrayBytes !== undefined && maxArrayBytes !== null)) {
+            nextValue = trimArrayToLimits(nextValue, maxArrayLength, maxArrayBytes);
+          }
           assertDataWithinLimits(nextValue, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
           setPathValue(persistedSnapshot, dotPath, nextValue);
           appliedMutations.push({ dotPath, nextValue });
@@ -597,16 +610,33 @@ class MemoryStorage {
    * @param {string} dotPath - Dot notation path to the array
    * @param {*} item - Item to append
    * @param {number} maxLength - Maximum length of the array (optional)
+   * @param {string} dedupeKey - Object property used to deduplicate entries (optional)
    */
-  async appendToArray(dotPath, item, maxLength = null) {
+  async appendToArray(dotPath, item, maxLength = null, dedupeKey = null) {
     return this.mutatePersisted(dotPath, (current) => {
       let array = Array.isArray(current) ? current : [];
+
+      if (typeof dedupeKey === 'string' && dedupeKey !== '' && item && typeof item === 'object' && !Array.isArray(item)) {
+        const itemValue = item[dedupeKey];
+        if (itemValue !== undefined && itemValue !== null && typeof itemValue !== 'object') {
+          const seen = new Set();
+          array = array.filter((entry) => {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return true;
+            const value = entry[dedupeKey];
+            if (value === undefined || value === null || typeof value === 'object') return true;
+            if (value === itemValue || seen.has(value)) return false;
+            seen.add(value);
+            return true;
+          });
+        }
+      }
+
       array.unshift(item);
 
-      if (maxLength && array.length > maxLength) {
-        array = array.slice(0, maxLength);
-      }
-      return array;
+      return trimArrayToLimits(array, maxLength);
+    }, {
+      maxArrayLength: maxLength,
+      maxArrayBytes: INPUT_LIMITS.maxStoredValueBytes
     });
   }
 
@@ -643,7 +673,7 @@ class MemoryStorage {
       const tools = Array.isArray(current) ? current : [];
       if (!tools.includes(toolName)) tools.push(toolName);
       return tools;
-    });
+    }, { maxArrayBytes: INPUT_LIMITS.maxStoredValueBytes });
   }
 
   async recordCommandUsage(command, maxLength) {
@@ -667,7 +697,7 @@ class MemoryStorage {
 
       commands.sort((left, right) => right.count - left.count);
       return commands.slice(0, maxLength);
-    });
+    }, { maxArrayLength: maxLength });
   }
 
   /**

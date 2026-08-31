@@ -374,6 +374,19 @@ describe('MemoryManager', () => {
       expect(tasks[0].content).toBe('implement feature');
     });
 
+    test('should deduplicate repeated session history items', async () => {
+      await manager.recordSessionItem('topic', 'repeated topic');
+      await manager.recordSessionItem('topic', 'another topic');
+      await manager.recordSessionItem('topic', 'repeated topic');
+
+      const topics = storage.get('sessionHistory.recentTopics');
+      expect(topics).toHaveLength(2);
+      expect(topics.map((topic) => topic.content)).toEqual([
+        'repeated topic',
+        'another topic'
+      ]);
+    });
+
     test('should reject oversized session content', async () => {
       await expect(manager.recordSessionItem('task', 'x'.repeat(10001)))
         .rejects.toThrow('session item content must not exceed 10000 characters');

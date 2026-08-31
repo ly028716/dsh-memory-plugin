@@ -177,6 +177,7 @@ class MemoryManager {
     if (this.config.trackPreferences) {
       mutations.push({
         dotPath: 'inputHabits.preferredTools',
+        maxArrayBytes: INPUT_LIMITS.maxStoredValueBytes,
         mutate: (tools) => {
           const nextTools = Array.isArray(tools) ? tools : [];
           if (!nextTools.includes(name)) nextTools.push(name);
@@ -191,6 +192,7 @@ class MemoryManager {
       const safeCommand = redactSensitiveData(args.command);
       mutations.push({
         dotPath: 'inputHabits.commonCommands',
+        maxArrayLength: this.config.maxHistoryItems,
         mutate: (commands) => {
           const nextCommands = Array.isArray(commands) ? commands : [];
           const existingIndex = nextCommands.findIndex((entry) => entry && entry.command === safeCommand);
@@ -314,7 +316,7 @@ class MemoryManager {
     await this.storage.appendToArray(path, {
       content: redactSensitiveData(content),
       timestamp: new Date().toISOString()
-    }, this.config.maxHistoryItems);
+    }, this.config.maxHistoryItems, 'content');
   }
 
   /**

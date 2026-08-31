@@ -396,6 +396,24 @@ describe('MemoryStorage', () => {
       expect(topics.length).toBe(3);
       expect(topics[0]).toBe('topic-5');
     });
+
+    test('should trim long history arrays to the stored value byte limit', async () => {
+      const longContent = 'x'.repeat(10000);
+
+      for (let index = 0; index < 30; index += 1) {
+        await storage.appendToArray(
+          'sessionHistory.recentTopics',
+          { content: `${index}-${longContent}` },
+          10000,
+          'content'
+        );
+      }
+
+      const topics = storage.get('sessionHistory.recentTopics');
+      expect(topics.length).toBeLessThan(30);
+      expect(Buffer.byteLength(JSON.stringify(topics), 'utf8')).toBeLessThanOrEqual(256 * 1024);
+      expect(topics[0].content).toContain('29-');
+    });
   });
 
   describe('Tool Usage Tracking', () => {

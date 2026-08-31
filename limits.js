@@ -57,8 +57,44 @@ function assertDataWithinLimits(value, label, maxBytes, maxDepth = INPUT_LIMITS.
   }
 }
 
+function trimArrayToLimits(value, maxLength = null, maxBytes = INPUT_LIMITS.maxStoredValueBytes) {
+  if (!Array.isArray(value)) return value;
+
+  let trimmed = value;
+  if (Number.isSafeInteger(maxLength) && maxLength > 0 && trimmed.length > maxLength) {
+    trimmed = trimmed.slice(0, maxLength);
+  }
+
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) return trimmed;
+  const byteLength = (candidate) => {
+    try {
+      return Buffer.byteLength(JSON.stringify(candidate) || '', 'utf8');
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const fullLength = byteLength(trimmed);
+  if (fullLength === null || fullLength <= maxBytes) return trimmed;
+  if (byteLength([]) > maxBytes) return [];
+
+  let lower = 0;
+  let upper = trimmed.length;
+  while (lower < upper) {
+    const middle = Math.ceil((lower + upper) / 2);
+    const candidateLength = byteLength(trimmed.slice(0, middle));
+    if (candidateLength !== null && candidateLength <= maxBytes) {
+      lower = middle;
+    } else {
+      upper = middle - 1;
+    }
+  }
+  return trimmed.slice(0, lower);
+}
+
 module.exports = {
   INPUT_LIMITS,
   assertTextLength,
-  assertDataWithinLimits
+  assertDataWithinLimits,
+  trimArrayToLimits
 };
