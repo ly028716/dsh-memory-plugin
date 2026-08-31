@@ -14,6 +14,20 @@ function isRecoverableMemoryFileError(error) {
   return error instanceof SyntaxError || error?.message === 'Invalid memory data format';
 }
 
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function isRecommendationCommand(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) &&
+    isNonEmptyString(value.command) && Number.isFinite(value.count);
+}
+
+function isRecommendationProject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) &&
+    isNonEmptyString(value.path);
+}
+
 class MemoryManager {
   constructor(config, storage) {
     this.config = config;
@@ -145,19 +159,58 @@ class MemoryManager {
 
     await this.ensureInitialized();
 
-    const { name, args, result } = toolCall;
-    
-    // Record tool usage statistics
-    await this.storage.recordToolUsage(name);
-    
+    const { name, args } = toolCall;
+    const mutations = [
+      {
+        dotPath: 'sessionHistory.toolUsageStats',
+        mutate: (stats) => {
+          const nextStats = stats && typeof stats === 'object' && !Array.isArray(stats) ? stats : {};
+          const currentCount = Number.isSafeInteger(nextStats[name]) && nextStats[name] >= 0
+            ? nextStats[name]
+            : 0;
+          nextStats[name] = currentCount + 1;
+          return nextStats;
+        }
+      }
+    ];
+
     if (this.config.trackPreferences) {
-      await this.storage.addPreferredTool(name);
+      mutations.push({
+        dotPath: 'inputHabits.preferredTools',
+        mutate: (tools) => {
+          const nextTools = Array.isArray(tools) ? tools : [];
+          if (!nextTools.includes(name)) nextTools.push(name);
+          return nextTools;
+        }
+      });
     }
-    
-    // Analyze command patterns
+
     if (args && args.command) {
-      await this.analyzeCommand(redactSensitiveData(args.command));
+      if (typeof args.command !== 'string') throw new Error('command must be a string');
+      assertTextLength(args.command, 'command');
+      const safeCommand = redactSensitiveData(args.command);
+      mutations.push({
+        dotPath: 'inputHabits.commonCommands',
+        mutate: (commands) => {
+          const nextCommands = Array.isArray(commands) ? commands : [];
+          const existingIndex = nextCommands.findIndex((entry) => entry && entry.command === safeCommand);
+          const now = new Date().toISOString();
+
+          if (existingIndex >= 0) {
+            const existing = nextCommands[existingIndex];
+            existing.count = Number.isSafeInteger(existing.count) && existing.count >= 0 ? existing.count + 1 : 1;
+            existing.lastUsed = now;
+          } else {
+            nextCommands.unshift({ command: safeCommand, count: 1, firstUsed: now, lastUsed: now });
+          }
+
+          nextCommands.sort((left, right) => right.count - left.count);
+          return nextCommands.slice(0, this.config.maxHistoryItems);
+        }
+      });
     }
+
+    await this.storage.mutatePersistedBatch(mutations);
   }
 
   /**
@@ -286,7 +339,8 @@ class MemoryManager {
     if (!this.storage.memory) return recommendations;
 
     // Recommend preferred agents
-    const preferredAgents = this.storage.get('userPreferences.preferredAgents') || [];
+    const preferredAgents = (this.storage.get('userPreferences.preferredAgents') || [])
+      .filter(isNonEmptyString);
     if (preferredAgents.length > 0) {
       recommendations.suggestions.push({
         type: 'agent',
@@ -297,7 +351,7 @@ class MemoryManager {
 
     // Recommend default model
     const defaultModel = this.storage.get('userPreferences.defaultModel');
-    if (defaultModel) {
+    if (isNonEmptyString(defaultModel)) {
       recommendations.suggestions.push({
         type: 'model',
         items: [defaultModel],
@@ -320,7 +374,7 @@ class MemoryManager {
     // Recommend common commands that have reached the recognition threshold
     const commonCommands = this.storage.get('inputHabits.commonCommands') || [];
     const frequentCommands = commonCommands.filter((command) => (
-      Number.isFinite(command.count) && command.count >= this.config.patternRecognitionThreshold
+      isRecommendationCommand(command) && command.count >= this.config.patternRecognitionThreshold
     ));
     const contextualCommands = frequentCommands.filter((command) => matchesContext(command.command));
     const commandsToRecommend = contextualCommands.length > 0 ? contextualCommands : frequentCommands;
@@ -333,11 +387,12 @@ class MemoryManager {
     }
 
     // Recommend projects
-    const activeProjects = this.storage.get('projectContext.activeProjects') || [];
+    const activeProjects = (this.storage.get('projectContext.activeProjects') || [])
+      .filter(isRecommendationProject);
     const contextualProjects = activeProjects.filter((project) => matchesContext([
       project.name,
       project.path,
-      ...(project.tags || [])
+      ...(Array.isArray(project.tags) ? project.tags.filter(isNonEmptyString) : [])
     ].join(' ')));
     const projectsToRecommend = contextualProjects.length > 0 ? contextualProjects : activeProjects;
     if (projectsToRecommend.length > 0) {

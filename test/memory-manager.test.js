@@ -119,6 +119,19 @@ describe('MemoryManager', () => {
   });
 
   describe('Tool Call Recording', () => {
+    test('should persist one snapshot for a tool call with a command', async () => {
+      const writeSnapshot = jest.spyOn(storage, 'writeSnapshot');
+
+      await manager.recordToolCall({
+        name: 'read',
+        args: { command: 'npm test' },
+        result: 'success'
+      });
+
+      expect(writeSnapshot).toHaveBeenCalledTimes(1);
+      writeSnapshot.mockRestore();
+    });
+
     test('should record tool call', async () => {
       await manager.recordToolCall({
         name: 'read',
@@ -401,6 +414,39 @@ describe('MemoryManager', () => {
       
       expect(recs.available).toBe(true);
       expect(recs.suggestions.length).toBeGreaterThan(0);
+    });
+
+    test('should skip malformed imported collection entries in recommendations', async () => {
+      await manager.importData({
+        version: '1.1.0',
+        metadata: { createdAt: new Date().toISOString() },
+        userPreferences: {
+          preferredAgents: ['agent1', null, { name: 'invalid-agent' }],
+          defaultModel: 'test-model'
+        },
+        inputHabits: {
+          commonCommands: [
+            null,
+            { command: 'npm test', count: 3 },
+            { command: 42, count: 99 },
+            { command: 'invalid-count', count: '3' }
+          ]
+        },
+        projectContext: {
+          activeProjects: [
+            null,
+            { name: 'Invalid project', path: 42 },
+            { name: 'Valid project', path: '/valid', tags: ['node', null] }
+          ]
+        }
+      });
+
+      const recs = manager.getRecommendations('npm');
+
+      expect(recs).toEqual(expect.objectContaining({ available: true }));
+      expect(recs.suggestions.find((suggestion) => suggestion.type === 'agent').items).toEqual(['agent1']);
+      expect(recs.suggestions.find((suggestion) => suggestion.type === 'commands').items).toEqual(['npm test']);
+      expect(recs.suggestions.find((suggestion) => suggestion.type === 'projects').items).toEqual(['Valid project']);
     });
 
     test('tracks recommendation metrics for contextual matches and fallbacks', async () => {

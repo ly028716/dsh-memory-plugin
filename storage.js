@@ -491,22 +491,42 @@ class MemoryStorage {
   }
 
   async mutatePersisted(dotPath, mutate) {
+    return this.mutatePersistedBatch([{ dotPath, mutate }]);
+  }
+
+  async mutatePersistedBatch(mutations) {
     this.assertInitialized();
-    parseDotPath(dotPath);
-    if (typeof mutate !== 'function') throw new Error('mutate must be a function');
+    if (!Array.isArray(mutations) || mutations.length === 0) {
+      throw new Error('mutations must be a non-empty array');
+    }
+
+    const normalizedMutations = mutations.map((mutation) => {
+      if (!mutation || typeof mutation !== 'object' || Array.isArray(mutation)) {
+        throw new Error('mutation must be an object');
+      }
+      parseDotPath(mutation.dotPath);
+      if (typeof mutation.mutate !== 'function') throw new Error('mutate must be a function');
+      return mutation;
+    });
 
     const operation = this._saveQueue.then(async () => {
       await fs.mkdir(path.dirname(this.storagePath), { recursive: true });
       const ownerToken = await this.acquireLock();
       try {
         const persistedSnapshot = await this.readPersistedSnapshot();
-        const nextValue = redactSensitiveData(mutate(cloneData(getPathValue(persistedSnapshot, dotPath))));
-        assertDataWithinLimits(nextValue, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
-        setPathValue(persistedSnapshot, dotPath, nextValue);
+        const appliedMutations = [];
+        for (const { dotPath, mutate } of normalizedMutations) {
+          const nextValue = redactSensitiveData(mutate(cloneData(getPathValue(persistedSnapshot, dotPath))));
+          assertDataWithinLimits(nextValue, 'stored value', INPUT_LIMITS.maxStoredValueBytes);
+          setPathValue(persistedSnapshot, dotPath, nextValue);
+          appliedMutations.push({ dotPath, nextValue });
+        }
         persistedSnapshot.lastUpdated = new Date().toISOString();
         await this.writeSnapshot(persistedSnapshot);
 
-        setPathValue(this.memory, dotPath, nextValue);
+        for (const { dotPath, nextValue } of appliedMutations) {
+          setPathValue(this.memory, dotPath, nextValue);
+        }
         this.memory.lastUpdated = persistedSnapshot.lastUpdated;
       } finally {
         await this.releaseLock(ownerToken);
