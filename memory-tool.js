@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { buildMemoryContext } = require('./memory-context');
+const { buildMemorySearchContext } = require('./memory-context');
 const { redactSensitiveData } = require('./privacy');
 const { assertDataWithinLimits, INPUT_LIMITS } = require('./limits');
 
@@ -51,12 +51,39 @@ function categoryProjection(data, category) {
 function matchesQuery(value, query) {
   try {
     if (typeof value === 'string') return value.toLowerCase().includes(query);
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value).toLowerCase().includes(query);
     if (Array.isArray(value)) return value.some((item) => matchesQuery(item, query));
-    if (value && typeof value === 'object') return Object.values(value).some((item) => matchesQuery(item, query));
+    if (value && typeof value === 'object') {
+      return Object.entries(value).some(([key, item]) => key.toLowerCase().includes(query) || matchesQuery(item, query));
+    }
   } catch (_error) {
     return false;
   }
   return false;
+}
+
+function filterMatchingValue(value, query, matchKeys) {
+  if (matchesQuery(value, query) && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const filtered = value
+      .map((item) => filterMatchingValue(item, query, matchKeys))
+      .filter((item) => item !== undefined);
+    return filtered.length > 0 ? filtered : undefined;
+  }
+  if (!value || typeof value !== 'object') return undefined;
+
+  const filtered = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (matchKeys && key.toLowerCase().includes(query)) {
+      filtered[key] = nestedValue;
+      continue;
+    }
+    const nested = filterMatchingValue(nestedValue, query, matchKeys);
+    if (nested !== undefined) filtered[key] = nested;
+  }
+  return Object.keys(filtered).length > 0 ? filtered : undefined;
 }
 
 function filterMemoryByQuery(data, query) {
@@ -64,26 +91,31 @@ function filterMemoryByQuery(data, query) {
   if (!normalizedQuery || !data || typeof data !== 'object' || Array.isArray(data)) return data;
 
   const filtered = {};
-  const defaultModel = data.userPreferences?.defaultModel;
-  if (matchesQuery(defaultModel, normalizedQuery)) {
-    filtered.userPreferences = { defaultModel };
+  const userPreferences = filterMatchingValue(data.userPreferences, normalizedQuery, true);
+  if (userPreferences !== undefined) filtered.userPreferences = userPreferences;
+
+  const activeProjects = filterMatchingValue(data.projectContext?.activeProjects, normalizedQuery, false);
+  if (activeProjects !== undefined) filtered.projectContext = { activeProjects };
+
+  const recentTopics = filterMatchingValue(data.sessionHistory?.recentTopics, normalizedQuery, false);
+  const frequentTasks = filterMatchingValue(data.sessionHistory?.frequentTasks, normalizedQuery, false);
+  const toolUsageStats = filterMatchingValue(data.sessionHistory?.toolUsageStats, normalizedQuery, true);
+  if (recentTopics !== undefined || frequentTasks !== undefined || toolUsageStats !== undefined) {
+    filtered.sessionHistory = {};
+    if (recentTopics !== undefined) filtered.sessionHistory.recentTopics = recentTopics;
+    if (frequentTasks !== undefined) filtered.sessionHistory.frequentTasks = frequentTasks;
+    if (toolUsageStats !== undefined) filtered.sessionHistory.toolUsageStats = toolUsageStats;
   }
 
-  const activeProjects = (data.projectContext?.activeProjects || [])
-    .filter((project) => matchesQuery(project, normalizedQuery));
-  if (activeProjects.length > 0) filtered.projectContext = { activeProjects };
-
-  const recentTopics = (data.sessionHistory?.recentTopics || [])
-    .filter((topic) => matchesQuery(topic, normalizedQuery));
-  const frequentTasks = (data.sessionHistory?.frequentTasks || [])
-    .filter((task) => matchesQuery(task, normalizedQuery));
-  if (recentTopics.length > 0 || frequentTasks.length > 0) {
-    filtered.sessionHistory = { recentTopics, frequentTasks };
+  const commonCommands = filterMatchingValue(data.inputHabits?.commonCommands, normalizedQuery, false);
+  const frequentPatterns = filterMatchingValue(data.inputHabits?.frequentPatterns, normalizedQuery, false);
+  const preferredTools = filterMatchingValue(data.inputHabits?.preferredTools, normalizedQuery, false);
+  if (commonCommands !== undefined || frequentPatterns !== undefined || preferredTools !== undefined) {
+    filtered.inputHabits = {};
+    if (commonCommands !== undefined) filtered.inputHabits.commonCommands = commonCommands;
+    if (frequentPatterns !== undefined) filtered.inputHabits.frequentPatterns = frequentPatterns;
+    if (preferredTools !== undefined) filtered.inputHabits.preferredTools = preferredTools;
   }
-
-  const preferredTools = (data.inputHabits?.preferredTools || [])
-    .filter((tool) => matchesQuery(tool, normalizedQuery));
-  if (preferredTools.length > 0) filtered.inputHabits = { preferredTools };
 
   return filtered;
 }
@@ -144,7 +176,7 @@ function createMemoryTool(memory, config = {}) {
           let exported = {};
           if (memory && typeof memory.exportData === 'function') exported = memory.exportData() || {};
           const projected = categoryProjection(exported, args.category);
-          const text = buildMemoryContext(filterMemoryByQuery(projected, args.query));
+          const text = buildMemorySearchContext(filterMemoryByQuery(projected, args.query));
           result = { ok: true, action: 'search', text };
         } else if (args.action === 'remember') {
           if (!CATEGORIES.includes(args.category)) return errorResult();

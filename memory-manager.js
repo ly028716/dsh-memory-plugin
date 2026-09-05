@@ -469,7 +469,9 @@ class MemoryManager {
    */
   async importData(data) {
     await this.ensureInitialized();
-    await this.storage.importData(redactSensitiveData(data));
+    const safeData = redactSensitiveData(data);
+    await this.lifecycle.backup('import-safety');
+    await this.storage.importData(safeData);
   }
 
   async backup(reason = 'manual') {
@@ -499,7 +501,9 @@ class MemoryManager {
     if (!this.config.allowClearMemory) {
       throw new Error('Memory clearing is disabled in configuration');
     }
-    
+
+    await this.ensureInitialized();
+    await this.lifecycle.backup('clear-safety');
     await this.storage.clear();
   }
 

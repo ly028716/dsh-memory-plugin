@@ -22,6 +22,20 @@ const SENSITIVE_KEY_TOKENS = new Set([
   'token'
 ]);
 
+// High-confidence provider formats that can appear without a key, flag, or
+// assignment. Generic long random strings are intentionally not matched to
+// avoid corrupting ordinary user content.
+const STANDALONE_CREDENTIAL_PATTERNS = [
+  /(?<![A-Za-z0-9_-])sk-(?:proj-)?[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])/gi,
+  /(?<![A-Za-z0-9_])gh[pousr]_[A-Za-z0-9_]{20,}(?![A-Za-z0-9_])/g,
+  /(?<![A-Za-z0-9])glpat-[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])/g,
+  /(?<![A-Za-z0-9])xox[baprs]-[A-Za-z0-9-]{20,}(?![A-Za-z0-9-])/g,
+  /(?<![A-Za-z0-9])npm_[A-Za-z0-9]{20,}(?![A-Za-z0-9])/g,
+  /(?<![A-Za-z0-9])(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])/g,
+  /(?<![A-Za-z0-9])AIza[0-9A-Za-z_-]{20,}(?![0-9A-Za-z_-])/g,
+  /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?![A-Za-z0-9_-])/g
+];
+
 function isSensitiveKey(key) {
   const tokens = String(key)
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
@@ -37,7 +51,7 @@ function isSensitiveKey(key) {
 }
 
 function redactString(value) {
-  return value
+  let redacted = value
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, REDACTED)
     .replace(/\b((?:[A-Z][A-Z0-9]*_)*(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASS|PWD|CREDENTIAL|PRIVATE[_-]?KEY)(?:_[A-Z0-9]+)*)(\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"';&|]+))/g, (match, name, separator, doubleQuoted, singleQuoted) => {
       if (!ENV_SENSITIVE_NAME_PATTERN.test(name)) return match;
@@ -63,6 +77,11 @@ function redactString(value) {
       return `${prefix}${quote}${REDACTED}${quote}`;
     })
     .replace(/(?<![A-Za-z0-9_])(["']?(?:api[-_]?key|access[-_]?key|access[-_]?token|token|secret|password|passwd|pwd|credential|private[-_]?key|auth(?:[-_ ]?(?:token|password))?)["']?\s*[:=]\s*["']?)([^"',}\s]+)/gi, `$1${REDACTED}`);
+
+  for (const pattern of STANDALONE_CREDENTIAL_PATTERNS) {
+    redacted = redacted.replace(pattern, REDACTED);
+  }
+  return redacted;
 }
 
 function redactSensitiveData(value, seen = new WeakMap()) {

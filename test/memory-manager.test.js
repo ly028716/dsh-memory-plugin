@@ -599,6 +599,23 @@ describe('MemoryManager', () => {
       expect(persisted).not.toContain('IMPORTED_SECRET');
     });
 
+    test('should create a safety backup before importing data', async () => {
+      storage.set('userPreferences.defaultModel', 'before-import');
+      await storage.save();
+
+      await manager.importData({
+        version: '1.0.0',
+        metadata: { createdAt: new Date().toISOString() },
+        userPreferences: { defaultModel: 'after-import' }
+      });
+
+      const backups = await manager.listBackups();
+      const safetyBackup = backups.find((backup) => backup.reason === 'import-safety');
+      expect(safetyBackup).toBeDefined();
+      expect(JSON.parse(await fs.readFile(safetyBackup.path, 'utf8')).userPreferences.defaultModel)
+        .toBe('before-import');
+    });
+
     test('should reject prototype pollution paths', async () => {
       expect(() => storage.set('__proto__.polluted', 'yes')).toThrow('Unsafe storage path');
       expect(() => storage.get('constructor.prototype')).toThrow('Unsafe storage path');
@@ -617,6 +634,19 @@ describe('MemoryManager', () => {
       
       const value = storage.get('userPreferences.test');
       expect(value).toBeUndefined();
+    });
+
+    test('should create a safety backup before clearing memory', async () => {
+      storage.set('userPreferences.defaultModel', 'before-clear');
+      await storage.save();
+
+      await manager.clearMemory();
+
+      const backups = await manager.listBackups();
+      const safetyBackup = backups.find((backup) => backup.reason === 'clear-safety');
+      expect(safetyBackup).toBeDefined();
+      expect(JSON.parse(await fs.readFile(safetyBackup.path, 'utf8')).userPreferences.defaultModel)
+        .toBe('before-clear');
     });
 
     test('should throw error when clearing is disabled', async () => {

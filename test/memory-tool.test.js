@@ -83,6 +83,72 @@ describe('memory agent tool', () => {
     expect(result.text).not.toContain('unrelated-tool');
   });
 
+  test.each([
+    ['coding-agent', 'coding-agent'],
+    ['vitest', 'framework: vitest'],
+    ['npm test', 'command: npm test'],
+    ['run unit tests', 'pattern: run unit tests'],
+    ['read', 'read: 5']
+  ])('search finds %s across all supported memory fields', async (query, expected) => {
+    const memory = createMemory({
+      exportData: jest.fn(() => ({
+        userPreferences: {
+          preferredAgents: ['coding-agent'],
+          language: 'zh-CN',
+          customSettings: { framework: 'vitest' }
+        },
+        inputHabits: {
+          commonCommands: [{ command: 'npm test', count: 4 }],
+          frequentPatterns: [{ pattern: 'run unit tests', count: 3 }],
+          preferredTools: ['read']
+        },
+        sessionHistory: {
+          toolUsageStats: { read: 5 },
+          recentTopics: [],
+          frequentTasks: []
+        }
+      }))
+    });
+
+    const result = await createMemoryTool(memory).execute({ action: 'search', query }, exec());
+
+    expect(result.ok).toBe(true);
+    expect(result.text).toContain(expected);
+  });
+
+  test('search without a query renders the complete supported memory index', async () => {
+    const memory = createMemory({
+      exportData: jest.fn(() => ({
+        userPreferences: {
+          preferredAgents: ['coding-agent'],
+          language: 'zh-CN',
+          workingDirectory: 'D:/workspace',
+          customSettings: { framework: 'vitest' }
+        },
+        inputHabits: {
+          commonCommands: [{ command: 'npm test', count: 4 }],
+          frequentPatterns: [{ pattern: 'run unit tests', count: 3 }],
+          preferredTools: ['read']
+        },
+        sessionHistory: {
+          toolUsageStats: { read: 5 },
+          recentTopics: [],
+          frequentTasks: []
+        }
+      }))
+    });
+
+    const result = await createMemoryTool(memory).execute({ action: 'search' }, exec());
+
+    expect(result.text).toEqual(expect.stringContaining('coding-agent'));
+    expect(result.text).toEqual(expect.stringContaining('Language: zh-CN'));
+    expect(result.text).toEqual(expect.stringContaining('Working directory: D:/workspace'));
+    expect(result.text).toEqual(expect.stringContaining('framework: vitest'));
+    expect(result.text).toEqual(expect.stringContaining('command: npm test'));
+    expect(result.text).toEqual(expect.stringContaining('pattern: run unit tests'));
+    expect(result.text).toEqual(expect.stringContaining('read: 5'));
+  });
+
   test('marks deferred tool results as untrusted user-controlled data', async () => {
     const contextExec = exec();
     await createMemoryTool(createMemory()).execute({ action: 'search' }, contextExec);

@@ -83,6 +83,23 @@ describe('privacy redaction', () => {
     expect(value).not.toContain('secret-key');
   });
 
+  test('redacts standalone provider credential formats', () => {
+    const credentials = [
+      'sk-proj-abcdefghijklmnopqrstuvwxyz123456',
+      'ghp_1234567890abcdefghijklmnopqrstuv',
+      'glpat-1234567890abcdefghijklmnop',
+      ['xoxb', '123456789012', '123456789012', 'abcdefghijklmnopqrstuv'].join('-'),
+      'npm_1234567890abcdefghijklmnopqrstuv',
+      'AKIA1234567890ABCDEF',
+      'AIzaSyAbcdefghijklmnopqrstuvwxyz123456',
+      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature-value'
+    ];
+    const value = redactSensitiveData(`credentials: ${credentials.join(' ')}`);
+
+    for (const credential of credentials) expect(value).not.toContain(credential);
+    expect(value.match(/\[REDACTED\]/g)).toHaveLength(credentials.length);
+  });
+
   test('masks usernames in common absolute user paths', () => {
     expect(redactProjectPath('C:\\Users\\Alice\\repo')).toBe('C:\\Users\\[USER]\\repo');
     expect(redactProjectPath('/home/alice/repo')).toBe('/home/[USER]/repo');
