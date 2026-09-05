@@ -596,6 +596,46 @@ describe('MemoryManager', () => {
       expect(value).toBe(true);
     });
 
+    test('should bound imported history arrays by configured count and byte limits', async () => {
+      manager.config.maxHistoryItems = 2;
+      const importedTopics = [
+        { content: 'first topic' },
+        { content: 'second topic' },
+        { content: 'third topic' }
+      ];
+      const importedCommands = [
+        { command: 'first command', count: 3 },
+        { command: 'second command', count: 2 },
+        { command: 'third command', count: 1 }
+      ];
+      const oversizedTasks = [
+        { content: 'x'.repeat(180 * 1024) },
+        { content: 'y'.repeat(180 * 1024) }
+      ];
+
+      await manager.importData({
+        version: '1.0.0',
+        metadata: { createdAt: new Date().toISOString() },
+        inputHabits: {
+          commonCommands: importedCommands,
+          frequentPatterns: ['first pattern', 'second pattern', 'third pattern'],
+          preferredTools: ['first-tool', 'second-tool', 'third-tool']
+        },
+        sessionHistory: {
+          recentTopics: importedTopics,
+          frequentTasks: oversizedTasks
+        }
+      });
+
+      expect(storage.get('inputHabits.commonCommands')).toHaveLength(2);
+      expect(storage.get('inputHabits.frequentPatterns')).toHaveLength(2);
+      expect(storage.get('inputHabits.preferredTools')).toHaveLength(2);
+      expect(storage.get('sessionHistory.recentTopics')).toHaveLength(2);
+      expect(storage.get('sessionHistory.frequentTasks')).toHaveLength(1);
+      expect(Buffer.byteLength(JSON.stringify(storage.get('sessionHistory.frequentTasks')), 'utf8'))
+        .toBeLessThanOrEqual(256 * 1024);
+    });
+
     test('should redact sensitive values during import', async () => {
       await manager.importData({
         version: '1.0.0',

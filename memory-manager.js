@@ -8,7 +8,38 @@ const { DataLifecycleManager } = require('./data-lifecycle');
 const fs = require('fs').promises;
 const path = require('path');
 const { redactSensitiveData, redactProjectPath } = require('./privacy');
-const { INPUT_LIMITS, assertTextLength, assertDataWithinLimits } = require('./limits');
+const {
+  INPUT_LIMITS,
+  assertTextLength,
+  assertDataWithinLimits,
+  trimArrayToLimits
+} = require('./limits');
+
+const IMPORTED_HISTORY_FIELDS = [
+  ['inputHabits', 'commonCommands'],
+  ['inputHabits', 'frequentPatterns'],
+  ['inputHabits', 'preferredTools'],
+  ['sessionHistory', 'recentTopics'],
+  ['sessionHistory', 'frequentTasks']
+];
+
+function boundImportedHistory(data, maxHistoryItems) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+
+  for (const [sectionName, fieldName] of IMPORTED_HISTORY_FIELDS) {
+    const section = data[sectionName];
+    if (!section || typeof section !== 'object' || Array.isArray(section)) continue;
+    if (Array.isArray(section[fieldName])) {
+      section[fieldName] = trimArrayToLimits(
+        section[fieldName],
+        maxHistoryItems,
+        INPUT_LIMITS.maxStoredValueBytes
+      );
+    }
+  }
+
+  return data;
+}
 
 function isRecoverableMemoryFileError(error) {
   return error instanceof SyntaxError || error?.message === 'Invalid memory data format';
@@ -471,7 +502,10 @@ class MemoryManager {
    */
   async importData(data) {
     await this.ensureInitialized();
-    const safeData = redactSensitiveData(data);
+    const safeData = boundImportedHistory(
+      redactSensitiveData(data),
+      this.config.maxHistoryItems
+    );
     await this.lifecycle.backup('import-safety');
     await this.storage.importData(safeData);
   }

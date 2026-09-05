@@ -117,7 +117,9 @@ class DataLifecycleManager {
 
   async backup(reason = 'manual') {
     const normalizedReason = this.normalizeReason(reason);
-    return this.writeSnapshot(this.storage.exportData(), normalizedReason);
+    const snapshot = await this.writeSnapshot(this.storage.exportData(), normalizedReason);
+    await this.applyRetention();
+    return snapshot;
   }
 
   async backupFile(reason = 'startup') {
@@ -232,8 +234,13 @@ class DataLifecycleManager {
       const isRecent = new Date(backup.createdAt).getTime() >= cutoff;
       const isWithinCount = index < this.backupRetentionCount;
       if (isRecent || isWithinCount) continue;
-      await fs.unlink(backup.path);
-      deleted.push(backup.name);
+      try {
+        await fs.unlink(backup.path);
+        deleted.push(backup.name);
+      } catch (error) {
+        // Another retention run may have removed the same stale snapshot.
+        if (error.code !== 'ENOENT') throw error;
+      }
     }
 
     const remaining = await this.listBackups();

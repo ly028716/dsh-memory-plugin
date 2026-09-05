@@ -45,6 +45,23 @@ describe('DataLifecycleManager', () => {
     expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining(`${result.path}.`), result.path);
   });
 
+  test('applies retention after each backup', async () => {
+    lifecycle = new DataLifecycleManager(storage, {
+      backupDir,
+      backupRetentionDays: 1,
+      backupRetentionCount: 1
+    });
+
+    const first = await lifecycle.backup('manual');
+    const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await fs.utimes(first.path, old, old);
+
+    const second = await lifecycle.backup('manual');
+
+    await expect(fs.access(first.path)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect((await lifecycle.listBackups()).map((item) => item.name)).toEqual([second.name]);
+  });
+
   test('rejects restore paths outside the backup directory', async () => {
     await expect(lifecycle.restoreBackup('../memory.json')).rejects.toThrow('Invalid backup name');
   });
@@ -107,5 +124,39 @@ describe('DataLifecycleManager', () => {
 
     expect(result.deleted).toEqual(['memory-old-manual.json']);
     await expect(fs.access(path.join(backupDir, 'keep.txt'))).resolves.toBeUndefined();
+  });
+
+  test('tolerates concurrent retention runs deleting the same stale snapshot', async () => {
+    await fs.mkdir(backupDir, { recursive: true });
+    const retainedPath = path.join(backupDir, 'memory-retained-manual.json');
+    const stalePath = path.join(backupDir, 'memory-stale-manual.json');
+    await fs.writeFile(retainedPath, '{}');
+    await fs.writeFile(stalePath, '{}');
+    const retainedTime = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    const staleTime = new Date(Date.now() - 32 * 24 * 60 * 60 * 1000);
+    await fs.utimes(retainedPath, retainedTime, retainedTime);
+    await fs.utimes(stalePath, staleTime, staleTime);
+    lifecycle = new DataLifecycleManager(storage, {
+      backupDir,
+      backupRetentionDays: 30,
+      backupRetentionCount: 1
+    });
+
+    const originalUnlink = fs.unlink;
+    const unlinkSpy = jest.spyOn(fs, 'unlink').mockImplementationOnce(async (filePath) => {
+      await originalUnlink(filePath);
+      const error = new Error('snapshot already removed by another retention run');
+      error.code = 'ENOENT';
+      throw error;
+    });
+
+    try {
+      const result = await lifecycle.applyRetention();
+      expect(result.deleted).toEqual([]);
+    } finally {
+      unlinkSpy.mockRestore();
+    }
+
+    await expect(fs.access(stalePath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
