@@ -31,7 +31,7 @@ doctor 默认只读检查；`--fix` 只把 DSH 共享 `profiles/node_modules` �
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # 当前已推送的 pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2
 ```
 
 ### 方法 1：在 DSH 配置文件中引用（推荐）

@@ -61,7 +61,7 @@ dsh plugin --profile <name> add "git+https://github.com/ly028716/dsh-memory-plug
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # 当前已推送的 pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2
 ```
 
 GitHub pinned commit 不是普通用户的浮动安装方式；安装后仍应在 profile 目录中执行

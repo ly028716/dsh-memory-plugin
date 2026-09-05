@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..');
-const PINNED_COMMIT = '408fadeeac2746051084e8e8c28d3c285c637b4e';
+const PINNED_COMMIT = '55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2';
 const PINNED_SPEC = `github:ly028716/dsh-memory-plugin#${PINNED_COMMIT}`;
 const PINNED_VERIFY_BASH = `DSH_PINNED_COMMIT=${PINNED_COMMIT} npm run test:pinned-commit`;
 const PINNED_VERIFY_POWERSHELL = `$env:DSH_PINNED_COMMIT = '${PINNED_COMMIT}'\nnpm run test:pinned-commit\nRemove-Item Env:DSH_PINNED_COMMIT`;
@@ -34,7 +34,7 @@ describe('community registry submission contract', () => {
       target: 'github',
       spec: PINNED_SPEC
     }));
-    expect(entry.alternateInstall.spec).toBe('@ly028716/dsh-memory-plugin');
+    expect(entry).not.toHaveProperty('alternateInstall');
     expect(entry.evidence.validation).toEqual(expect.arrayContaining([
       'npm test -- --runInBand',
       'npm run check',

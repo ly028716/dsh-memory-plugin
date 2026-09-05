@@ -38,11 +38,13 @@ Invoke-RestMethod -Method Put `
 
 ## 安装信息
 
-普通用户：
+通过 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile web add @ly028716/dsh-memory-plugin
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2
 ```
+
+本提交材料暂不声明 npm 安装来源；待 npm registry 中的包发布状态独立验证后，再补充对应的包名和安装命令。
 
 CI、审计和复现环境：
 
@@ -50,7 +52,7 @@ CI、审计和复现环境：
 dsh plugin --profile web add github:ly028716/dsh-memory-plugin#<40-character-commit-sha>
 
 # 当前已推送的 pinned commit（CI/审计场景）
-dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051084e8e8c28d3c285c637b4e
+dsh plugin --profile web add github:ly028716/dsh-memory-plugin#55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2
 ```
 
 `<40-character-commit-sha>` 必须替换成完整 40 位 SHA；短 SHA、浮动分支或未固定的 GitHub spec 不属于 pinned commit 安装。
@@ -60,7 +62,7 @@ dsh plugin --profile web add github:ly028716/dsh-memory-plugin#408fadeeac2746051
 ```bash
 npm test -- --runInBand
 npm run check
-DSH_PINNED_COMMIT=408fadeeac2746051084e8e8c28d3c285c637b4e npm run test:pinned-commit
+DSH_PINNED_COMMIT=55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2 npm run test:pinned-commit
 npm run test:package
 git diff --check
 ```
@@ -68,7 +70,7 @@ git diff --check
 上面的命令适用于 Bash；如果你在 Windows PowerShell 中执行，请使用下面的写法设置并清理临时环境变量：
 
 ```powershell
-$env:DSH_PINNED_COMMIT = '408fadeeac2746051084e8e8c28d3c285c637b4e'
+$env:DSH_PINNED_COMMIT = '55cef1673aa12d4be6b8aa3a6a1b6f95602f10d2'
 npm run test:pinned-commit
 Remove-Item Env:DSH_PINNED_COMMIT
 ```
