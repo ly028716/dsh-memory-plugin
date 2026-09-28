@@ -459,7 +459,7 @@ describe('MemoryManager', () => {
       expect(recs).toEqual(expect.objectContaining({ available: true }));
       expect(recs.suggestions.find((suggestion) => suggestion.type === 'agent').items).toEqual(['agent1']);
       expect(recs.suggestions.find((suggestion) => suggestion.type === 'commands').items).toEqual(['npm test']);
-      expect(recs.suggestions.find((suggestion) => suggestion.type === 'projects').items).toEqual(['Valid project']);
+      expect(recs.suggestions.find((suggestion) => suggestion.type === 'projects')).toBeUndefined();
     });
 
     test('tracks recommendation metrics for contextual matches and fallbacks', async () => {

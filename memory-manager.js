@@ -23,6 +23,26 @@ const IMPORTED_HISTORY_FIELDS = [
   ['sessionHistory', 'frequentTasks']
 ];
 
+function tokenizeContext(value) {
+  if (typeof value !== 'string') return [];
+  return [...new Set((value.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || []))];
+}
+
+function contextMatchCount(value, tokens) {
+  const text = String(value || '').toLocaleLowerCase();
+  const candidateTokens = new Set(tokenizeContext(text));
+  return tokens.filter((token) => /^[a-z0-9]+$/i.test(token)
+    ? candidateTokens.has(token)
+    : text.includes(token)).length;
+}
+
+function rankByContext(items, hasContext, tokens, textFor, secondaryScore) {
+  return items
+    .map((item) => ({ item, matches: contextMatchCount(textFor(item), tokens), score: secondaryScore(item) }))
+    .filter((entry) => !hasContext || entry.matches > 0)
+    .sort((left, right) => right.matches - left.matches || right.score - left.score);
+}
+
 function boundImportedHistory(data, maxHistoryItems) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
 
@@ -280,6 +300,19 @@ class MemoryManager {
     await this.storage.save();
   }
 
+  async recordCollectedPreference(preferenceKey, value) {
+    if (!this.config.trackPreferences || value === undefined || value === null || value === '') return;
+    await this.recordPreference(preferenceKey, value);
+  }
+
+  async recordCollectedAgentPreset(agentPreset) {
+    if (!this.config.trackPreferences || typeof agentPreset !== 'string' || agentPreset.trim() === '') return;
+    await this.ensureInitialized();
+    const agents = this.storage.get('userPreferences.preferredAgents') || [];
+    if (agents.includes(agentPreset)) return;
+    await this.recordPreference('preferredAgents', [...agents, agentPreset].slice(-this.config.maxHistoryItems));
+  }
+
   /**
    * Record active project context
    * @param {Object} projectInfo - Project information
@@ -392,52 +425,41 @@ class MemoryManager {
       });
     }
 
-    const contextTokens = typeof context === 'string'
-      ? context.trim().toLowerCase().split(/\s+/).filter(Boolean)
-      : [];
-    const hasContext = contextTokens.length > 0;
+    const hasContext = typeof context === 'string' && context.trim().length > 0;
+    const contextTokens = tokenizeContext(context);
     if (hasContext) this.recommendationMetrics.contextualRequests += 1;
-
-    const matchesContext = (value) => {
-      if (contextTokens.length === 0) return true;
-      const text = String(value || '').toLowerCase();
-      return contextTokens.some((token) => text.includes(token));
-    };
 
     // Recommend common commands that have reached the recognition threshold
     const commonCommands = this.storage.get('inputHabits.commonCommands') || [];
     const frequentCommands = commonCommands.filter((command) => (
       isRecommendationCommand(command) && command.count >= this.config.patternRecognitionThreshold
     ));
-    const contextualCommands = frequentCommands.filter((command) => matchesContext(command.command));
-    const commandsToRecommend = contextualCommands.length > 0 ? contextualCommands : frequentCommands;
-    if (commandsToRecommend.length > 0) {
+    const rankedCommands = rankByContext(frequentCommands, hasContext, contextTokens,
+      (command) => command.command, (command) => command.count);
+    if (rankedCommands.length > 0) {
       recommendations.suggestions.push({
         type: 'commands',
-        items: commandsToRecommend.slice(0, 5).map(cmd => cmd.command),
-        reason: 'Frequently used commands'
+        items: rankedCommands.slice(0, 5).map(({ item }) => item.command),
+        reason: hasContext ? 'Matches the requested context and usage history' : 'Frequently used commands'
       });
     }
 
     // Recommend projects
     const activeProjects = (this.storage.get('projectContext.activeProjects') || [])
       .filter(isRecommendationProject);
-    const contextualProjects = activeProjects.filter((project) => matchesContext([
-      project.name,
-      project.path,
-      ...(Array.isArray(project.tags) ? project.tags.filter(isNonEmptyString) : [])
-    ].join(' ')));
-    const projectsToRecommend = contextualProjects.length > 0 ? contextualProjects : activeProjects;
-    if (projectsToRecommend.length > 0) {
+    const rankedProjects = rankByContext(activeProjects, hasContext, contextTokens,
+      (project) => [project.name, project.path, ...(Array.isArray(project.tags) ? project.tags : [])].join(' '),
+      (project) => Date.parse(project.lastAccessed) || 0);
+    if (rankedProjects.length > 0) {
       recommendations.suggestions.push({
         type: 'projects',
-        items: projectsToRecommend.slice(0, 3).map(p => p.name || p.path),
-        reason: 'Recently accessed projects'
+        items: rankedProjects.slice(0, 3).map(({ item }) => item.name || item.path),
+        reason: hasContext ? 'Matches the requested context and recent activity' : 'Recently accessed projects'
       });
     }
 
     if (hasContext) {
-      const hasContextMatch = contextualCommands.length > 0 || contextualProjects.length > 0;
+      const hasContextMatch = rankedCommands.length > 0 || rankedProjects.length > 0;
       const hasFallbackCandidate = !hasContextMatch && (
         frequentCommands.length > 0 || activeProjects.length > 0
       );

@@ -175,6 +175,25 @@ module.exports = {
         });
       }
 
+      if (config.trackPreferences && ctx.on) {
+        ctx.on('session/created', async (session) => {
+          try {
+            await memoryManager.recordCollectedAgentPreset(session?.header?.agentPreset);
+          } catch (error) {
+            console.error('Memory plugin: Failed to record agent preference:', error.message);
+          }
+        });
+
+        ctx.on('session/event', async (_session, event) => {
+          if (event?.type !== 'request/context') return;
+          try {
+            await memoryManager.recordCollectedPreference('defaultModel', event.data?.model);
+          } catch (error) {
+            console.error('Memory plugin: Failed to record model preference:', error.message);
+          }
+        });
+      }
+
       // Session events are emitted by the core session service after each
       // committed append. Keep the listener installed even when the setting
       // starts disabled so live settings can take effect without rebuilding
