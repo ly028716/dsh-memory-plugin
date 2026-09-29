@@ -96,6 +96,7 @@ module.exports = {
       // 获取推荐
       const recommendations = ctx.memory.getRecommendations('coding');
       console.log('Recommendations:', recommendations);
+      // 每个 suggestion 都包含 reason 与 explanation：来源、上下文命中、分数和置信度。
 
       // 查看当前进程的推荐效果指标（不持久化）
       const metrics = ctx.memory.getRecommendationMetrics();
@@ -171,6 +172,20 @@ async function getSmartSuggestions(ctx, context) {
 getSmartSuggestions(ctx, 'debugging');  // 获取调试相关的推荐
 getSmartSuggestions(ctx, 'testing');    // 获取测试相关的推荐
 ```
+
+每个推荐分组都有 `reason` 和 `explanation`。`explanation` 提供 `source`、`contextMatched`、
+`matchedTokenCount`、`feedbackScore` 和 `confidence`，不会保存请求上下文本身。
+
+对返回的推荐项可提交本地反馈；`helpful` 会优先展示同等上下文与基础分数的候选，`not_helpful`
+会降低其排序：
+
+```javascript
+await ctx.memory.recordRecommendationFeedback('commands', 'npm run test', 'helpful');
+await ctx.memory.recordRecommendationFeedback('projects', 'legacy-project', 'not_helpful');
+```
+
+支持的类型是 `agent`、`model`、`commands` 和 `projects`。反馈仅保存在本地记忆文件中，且只保存
+推荐类型、已推荐的项、正负反馈计数和更新时间。
 
 ### 6. 数据统计和导出
 

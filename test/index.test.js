@@ -93,6 +93,15 @@ describe('default collection policy', () => {
     expect(await fs.readFile(testFile, 'utf8')).toContain('explicit-model');
   });
 
+  test('exposes local recommendation feedback through the memory service', async () => {
+    plugin.apply(context, { storagePath: testFile, autoSaveInterval: 100 });
+    await context.services.memory.ready;
+
+    const feedback = await context.services.memory.recordRecommendationFeedback('model', 'explicit-model', 'helpful');
+
+    expect(feedback).toEqual(expect.objectContaining({ helpful: 1, notHelpful: 0, score: 1 }));
+  });
+
   test('keeps the service safe while asynchronous initialization is pending', async () => {
     plugin.apply(context, {
       storagePath: testFile,

@@ -518,6 +518,45 @@ describe('MemoryManager', () => {
       expect(projectRec.items).toEqual(['Test Project']);
     });
 
+    test('should explain recommendation evidence and use local feedback to break ranking ties', async () => {
+      storage.set('inputHabits.commonCommands', [
+        { command: 'npm run test', count: 3 },
+        { command: 'npm run lint', count: 3 }
+      ]);
+      await storage.save();
+
+      await manager.recordRecommendationFeedback('commands', 'npm run lint', 'helpful');
+
+      const recs = manager.getRecommendations('npm');
+      const commandRec = recs.suggestions.find(s => s.type === 'commands');
+
+      expect(commandRec.items[0]).toBe('npm run lint');
+      expect(commandRec.explanation).toEqual(expect.objectContaining({
+        source: 'inputHabits.commonCommands',
+        contextMatched: true,
+        confidence: 'high',
+        feedbackScore: 1
+      }));
+    });
+
+    test('should reject unsupported recommendation feedback', async () => {
+      await expect(manager.recordRecommendationFeedback('commands', 'npm run test', 'unknown'))
+        .rejects.toThrow('outcome must be helpful or not_helpful');
+    });
+
+    test('should not let feedback override a higher command usage score', async () => {
+      storage.set('inputHabits.commonCommands', [
+        { command: 'npm run test', count: 5 },
+        { command: 'npm run lint', count: 3 }
+      ]);
+      await storage.save();
+      await manager.recordRecommendationFeedback('commands', 'npm run lint', 'helpful');
+
+      const commandRec = manager.getRecommendations('npm').suggestions.find(s => s.type === 'commands');
+
+      expect(commandRec.items[0]).toBe('npm run test');
+    });
+
     test('should apply pattern recognition threshold to command recommendations', async () => {
       storage.set('inputHabits.commonCommands', [
         { command: 'frequent command', count: 3 },

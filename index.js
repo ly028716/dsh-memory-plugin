@@ -250,6 +250,7 @@ module.exports = {
         // Recommendations
         getRecommendations: (context) => memoryManager.getRecommendations(context),
         getRecommendationMetrics: () => memoryManager.getRecommendationMetrics(),
+        recordRecommendationFeedback: (type, item, outcome) => memoryManager.recordRecommendationFeedback(type, item, outcome),
 
         // Statistics
         getStats: () => ({

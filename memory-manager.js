@@ -23,6 +23,9 @@ const IMPORTED_HISTORY_FIELDS = [
   ['sessionHistory', 'frequentTasks']
 ];
 
+const RECOMMENDATION_FEEDBACK_TYPES = new Set(['agent', 'model', 'commands', 'projects']);
+const RECOMMENDATION_FEEDBACK_OUTCOMES = new Set(['helpful', 'not_helpful']);
+
 function tokenizeContext(value) {
   if (typeof value !== 'string') return [];
   return [...new Set((value.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || []))];
@@ -36,11 +39,37 @@ function contextMatchCount(value, tokens) {
     : text.includes(token)).length;
 }
 
-function rankByContext(items, hasContext, tokens, textFor, secondaryScore) {
+function rankByContext(items, hasContext, tokens, textFor, secondaryScore, feedbackScore = () => 0) {
   return items
-    .map((item) => ({ item, matches: contextMatchCount(textFor(item), tokens), score: secondaryScore(item) }))
+    .map((item) => ({
+      item,
+      matches: contextMatchCount(textFor(item), tokens),
+      score: secondaryScore(item),
+      feedbackScore: feedbackScore(item)
+    }))
     .filter((entry) => !hasContext || entry.matches > 0)
-    .sort((left, right) => right.matches - left.matches || right.score - left.score);
+    .sort((left, right) => right.matches - left.matches || right.score - left.score || right.feedbackScore - left.feedbackScore);
+}
+
+function feedbackFor(entries, type, item) {
+  const entry = Array.isArray(entries)
+    ? entries.find((candidate) => candidate && candidate.type === type && candidate.item === item)
+    : null;
+  const helpful = Number.isSafeInteger(entry?.helpful) && entry.helpful >= 0 ? entry.helpful : 0;
+  const notHelpful = Number.isSafeInteger(entry?.notHelpful) && entry.notHelpful >= 0 ? entry.notHelpful : 0;
+  return { helpful, notHelpful, score: helpful - notHelpful };
+}
+
+function explanation(source, hasContext, ranked = []) {
+  const matches = ranked.reduce((maximum, entry) => Math.max(maximum, entry.matches || 0), 0);
+  const feedbackScore = ranked.reduce((total, entry) => total + (entry.feedbackScore || 0), 0);
+  return {
+    source,
+    contextMatched: matches > 0,
+    matchedTokenCount: matches,
+    feedbackScore,
+    confidence: hasContext ? (matches > 0 ? 'high' : 'low') : 'medium'
+  };
 }
 
 function boundImportedHistory(data, maxHistoryItems) {
@@ -404,14 +433,19 @@ class MemoryManager {
 
     if (!this.storage.memory) return recommendations;
 
+    const feedbackEntries = this.storage.get('metadata.recommendationFeedback') || [];
+
     // Recommend preferred agents
     const preferredAgents = (this.storage.get('userPreferences.preferredAgents') || [])
       .filter(isNonEmptyString);
-    if (preferredAgents.length > 0) {
+    const rankedAgents = rankByContext(preferredAgents, false, [], (agent) => agent, () => 0,
+      (agent) => feedbackFor(feedbackEntries, 'agent', agent).score);
+    if (rankedAgents.length > 0) {
       recommendations.suggestions.push({
         type: 'agent',
-        items: preferredAgents.slice(0, 3),
-        reason: 'Based on your usage history'
+        items: rankedAgents.slice(0, 3).map(({ item }) => item),
+        reason: 'Based on your usage history',
+        explanation: explanation('userPreferences.preferredAgents', false, rankedAgents)
       });
     }
 
@@ -421,7 +455,12 @@ class MemoryManager {
       recommendations.suggestions.push({
         type: 'model',
         items: [defaultModel],
-        reason: 'Your preferred model'
+        reason: 'Your preferred model',
+        explanation: {
+          ...explanation('userPreferences.defaultModel'),
+          feedbackScore: feedbackFor(feedbackEntries, 'model', defaultModel).score,
+          confidence: 'high'
+        }
       });
     }
 
@@ -435,12 +474,14 @@ class MemoryManager {
       isRecommendationCommand(command) && command.count >= this.config.patternRecognitionThreshold
     ));
     const rankedCommands = rankByContext(frequentCommands, hasContext, contextTokens,
-      (command) => command.command, (command) => command.count);
+      (command) => command.command, (command) => command.count,
+      (command) => feedbackFor(feedbackEntries, 'commands', command.command).score);
     if (rankedCommands.length > 0) {
       recommendations.suggestions.push({
         type: 'commands',
         items: rankedCommands.slice(0, 5).map(({ item }) => item.command),
-        reason: hasContext ? 'Matches the requested context and usage history' : 'Frequently used commands'
+        reason: hasContext ? 'Matches the requested context and usage history' : 'Frequently used commands',
+        explanation: explanation('inputHabits.commonCommands', hasContext, rankedCommands)
       });
     }
 
@@ -449,12 +490,14 @@ class MemoryManager {
       .filter(isRecommendationProject);
     const rankedProjects = rankByContext(activeProjects, hasContext, contextTokens,
       (project) => [project.name, project.path, ...(Array.isArray(project.tags) ? project.tags : [])].join(' '),
-      (project) => Date.parse(project.lastAccessed) || 0);
+      (project) => Date.parse(project.lastAccessed) || 0,
+      (project) => feedbackFor(feedbackEntries, 'projects', project.name || project.path).score);
     if (rankedProjects.length > 0) {
       recommendations.suggestions.push({
         type: 'projects',
         items: rankedProjects.slice(0, 3).map(({ item }) => item.name || item.path),
-        reason: hasContext ? 'Matches the requested context and recent activity' : 'Recently accessed projects'
+        reason: hasContext ? 'Matches the requested context and recent activity' : 'Recently accessed projects',
+        explanation: explanation('projectContext.activeProjects', hasContext, rankedProjects)
       });
     }
 
@@ -470,6 +513,38 @@ class MemoryManager {
     this.recommendationMetrics.suggestions += recommendations.suggestions.length;
 
     return recommendations;
+  }
+
+  /** Record local feedback for a returned recommendation item. */
+  async recordRecommendationFeedback(type, item, outcome) {
+    if (!RECOMMENDATION_FEEDBACK_TYPES.has(type)) {
+      throw new Error('type must be a supported recommendation type');
+    }
+    if (!isNonEmptyString(item)) throw new Error('item must be a non-empty string');
+    assertTextLength(item, 'recommendation item');
+    if (!RECOMMENDATION_FEEDBACK_OUTCOMES.has(outcome)) {
+      throw new Error('outcome must be helpful or not_helpful');
+    }
+
+    await this.ensureInitialized();
+    let recorded;
+    await this.storage.mutatePersisted('metadata.recommendationFeedback', (current) => {
+      const entries = Array.isArray(current) ? current.filter((entry) => entry && typeof entry === 'object') : [];
+      const previous = feedbackFor(entries, type, item);
+      recorded = {
+        type,
+        item,
+        helpful: previous.helpful + (outcome === 'helpful' ? 1 : 0),
+        notHelpful: previous.notHelpful + (outcome === 'not_helpful' ? 1 : 0),
+        updatedAt: new Date().toISOString()
+      };
+      return trimArrayToLimits(
+        [recorded, ...entries.filter((entry) => entry.type !== type || entry.item !== item)],
+        this.config.maxHistoryItems,
+        INPUT_LIMITS.maxStoredValueBytes
+      );
+    }, { maxArrayLength: this.config.maxHistoryItems, maxArrayBytes: INPUT_LIMITS.maxStoredValueBytes });
+    return { ...recorded, score: recorded.helpful - recorded.notHelpful };
   }
 
   /**
