@@ -34,6 +34,12 @@ describe('release CI configuration', () => {
     expect(e2eSource).toContain('args: [command, ...args]');
   });
 
+  test('should load the stable DSH profile-boot entry before hashed build chunks', () => {
+    const e2eSource = fs.readFileSync(path.join(__dirname, '..', 'test-dsh-e2e.js'), 'utf8');
+
+    expect(e2eSource).toContain("['profile-boot.js', ...fs.readdirSync(libRoot)");
+  });
+
   test('should document validation against the DSH 0.2 source CLI', () => {
     for (const documentName of ['README.md', 'README.en.md', 'INSTALL.md']) {
       const document = fs.readFileSync(path.join(__dirname, '..', documentName), 'utf8');

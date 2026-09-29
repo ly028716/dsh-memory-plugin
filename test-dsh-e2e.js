@@ -472,9 +472,10 @@ async function importDshPackage(dshRoot, packageName) {
 
 async function findProfileBootModule(dshRoot) {
   const libRoot = path.join(dshRoot, 'lib');
-  const candidates = fs.readdirSync(libRoot)
+  const candidates = ['profile-boot.js', ...fs.readdirSync(libRoot)
     .filter((entry) => /^profile-boot-.*\.js$/.test(entry))
-    .sort();
+    .sort()]
+    .filter((entry) => fs.existsSync(path.join(libRoot, entry)));
   if (candidates.length === 0) throw new Error(`host probe unavailable: no profile-boot-*.js in ${libRoot}`);
   let runProfile;
   let prepareProfile;
