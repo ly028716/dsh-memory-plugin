@@ -57,6 +57,7 @@ module.exports = {
         recordTask: (task) => memoryManager.recordSessionItem('task', task),
         addProject: (projectInfo) => memoryManager.recordProjectContext(projectInfo),
         exportData: () => memoryManager.exportData(),
+        forgetMemoryItem: (category, selector) => memoryManager.forgetMemoryItem(category, selector),
         clearMemory: () => memoryManager.clearMemory()
       };
 

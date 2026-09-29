@@ -11,6 +11,7 @@ function createMemory(overrides = {}) {
     recordTopic: jest.fn(async () => undefined),
     recordTask: jest.fn(async () => undefined),
     addProject: jest.fn(async () => undefined),
+    forgetMemoryItem: jest.fn(async () => ({ removed: true })),
     clearMemory: jest.fn(async () => undefined),
     ...overrides
   };
@@ -38,6 +39,7 @@ describe('memory agent tool', () => {
     expect(tool.output.schema.properties.ok).toEqual({ type: 'boolean' });
     expect(tool.output.schema.properties.action).toEqual({ type: 'string' });
     expect(tool.output.schema.properties.category).toEqual({ type: 'string' });
+    expect(tool.output.schema.properties.removed).toEqual({ type: 'boolean' });
   });
 
   test('search returns bounded safe data and defers user context', async () => {
@@ -210,6 +212,7 @@ describe('memory agent tool', () => {
     const denied = await createMemoryTool(deniedMemory, { allowClearMemory: false }).execute({ action: 'forget' }, exec());
     expect(denied).toEqual(expect.objectContaining({ ok: false, code: 'MEMORY_CLEAR_DISABLED' }));
     expect(deniedMemory.clearMemory).not.toHaveBeenCalled();
+    expect(deniedMemory.forgetMemoryItem).not.toHaveBeenCalled();
 
     const allowedMemory = createMemory();
     const allowed = await createMemoryTool(allowedMemory, { allowClearMemory: true }).execute({ action: 'forget' }, exec());
@@ -218,19 +221,36 @@ describe('memory agent tool', () => {
   });
 
   test.each([
-    ['category', { category: 'topic' }],
     ['query', { query: 'everything' }],
-    ['key', { key: 'model' }],
-    ['path', { path: '/repo' }],
     ['name', { name: 'repo' }],
     ['tags', { tags: ['repo'] }],
-    ['value', { value: 'anything' }]
+    ['key without a preference category', { key: 'model' }],
+    ['value without a topic or task category', { value: 'anything' }],
+    ['path without a project category', { path: '/repo' }],
+    ['category without its required selector', { category: 'topic' }],
+    ['more than one selector', { category: 'topic', value: 'anything', path: '/repo' }]
   ])('forget rejects a %s field and never clears memory', async (_field, extraArgs) => {
     const memory = createMemory();
     const result = await createMemoryTool(memory, { allowClearMemory: true })
       .execute({ action: 'forget', ...extraArgs }, exec());
 
     expect(result).toEqual(expect.objectContaining({ ok: false, code: 'MEMORY_TOOL_ERROR' }));
+    expect(memory.clearMemory).not.toHaveBeenCalled();
+    expect(memory.forgetMemoryItem).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['preference', { key: 'defaultModel' }, { key: 'defaultModel' }],
+    ['topic', { value: 'plugin development' }, { value: 'plugin development' }],
+    ['task', { value: 'run tests' }, { value: 'run tests' }],
+    ['project', { path: '/repo' }, { path: '/repo' }]
+  ])('forget removes one exact %s without clearing all memory', async (category, selector, expectedSelector) => {
+    const memory = createMemory();
+    const result = await createMemoryTool(memory, { allowClearMemory: true })
+      .execute({ action: 'forget', category, ...selector }, exec());
+
+    expect(result).toEqual(expect.objectContaining({ ok: true, action: 'forget', category, removed: true }));
+    expect(memory.forgetMemoryItem).toHaveBeenCalledWith(category, expectedSelector);
     expect(memory.clearMemory).not.toHaveBeenCalled();
   });
 

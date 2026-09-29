@@ -413,6 +413,98 @@ class MemoryManager {
   }
 
   /**
+   * Remove one exact entry from locally stored memory.
+   * @param {'preference'|'topic'|'task'|'project'} category - Memory category
+   * @param {{key?: string, value?: string, path?: string}} selector - Exact entry selector
+   * @returns {Promise<{category: string, removed: boolean}>}
+   */
+  async forgetMemoryItem(category, selector) {
+    if (!this.config.allowClearMemory) {
+      throw new Error('Memory clearing is disabled in configuration');
+    }
+    if (!['preference', 'topic', 'task', 'project'].includes(category)) {
+      throw new Error('memory category must be preference, topic, task, or project');
+    }
+    if (!selector || typeof selector !== 'object' || Array.isArray(selector)) {
+      throw new Error('memory selector must be an object');
+    }
+
+    const selectorKeys = Object.keys(selector);
+    const expectedKey = category === 'preference' ? 'key' : category === 'project' ? 'path' : 'value';
+    if (selectorKeys.length !== 1 || selectorKeys[0] !== expectedKey
+      || typeof selector[expectedKey] !== 'string' || selector[expectedKey].trim() === '') {
+      throw new Error(`memory ${category} selector must contain one non-empty ${expectedKey}`);
+    }
+
+    const rawValue = selector[expectedKey];
+    const limit = category === 'project' ? INPUT_LIMITS.maxProjectPathLength
+      : category === 'preference' ? INPUT_LIMITS.maxProjectNameLength
+        : undefined;
+    assertTextLength(rawValue, `memory ${category} selector`, limit);
+    await this.ensureInitialized();
+
+    let dotPath;
+    let matches;
+    let mutate;
+    let removed = false;
+    if (category === 'preference') {
+      const preferencePath = parseDotPath(`userPreferences.${rawValue}`);
+      const preferenceKeys = preferencePath.slice(1);
+      dotPath = 'userPreferences';
+      matches = (preferences) => {
+        let current = preferences;
+        for (const key of preferenceKeys) {
+          if (!current || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, key)) return false;
+          current = current[key];
+        }
+        return true;
+      };
+      mutate = (preferences) => {
+        let current = preferences;
+        for (const key of preferenceKeys.slice(0, -1)) {
+          if (!current || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, key)) return preferences;
+          current = current[key];
+        }
+        if (current && typeof current === 'object' && Object.prototype.hasOwnProperty.call(current, preferenceKeys.at(-1))) {
+          delete current[preferenceKeys.at(-1)];
+          removed = true;
+        }
+        return preferences;
+      };
+    } else {
+      dotPath = category === 'project'
+        ? 'projectContext.activeProjects'
+        : category === 'topic'
+          ? 'sessionHistory.recentTopics'
+          : 'sessionHistory.frequentTasks';
+      const safeValue = category === 'project'
+        ? redactProjectPath(redactSensitiveData(rawValue))
+        : redactSensitiveData(rawValue);
+      const field = category === 'project' ? 'path' : 'content';
+      matches = (items) => Array.isArray(items) && items.some((item) => item?.[field] === safeValue);
+      mutate = (items) => {
+        if (!Array.isArray(items)) return [];
+        const matchIndex = items.findIndex((item) => item?.[field] === safeValue);
+        if (matchIndex < 0) return items;
+        removed = true;
+        return [...items.slice(0, matchIndex), ...items.slice(matchIndex + 1)];
+      };
+    }
+
+    let backupCreated = false;
+    await this.storage.mutatePersisted(dotPath, mutate, {
+      maxArrayLength: category === 'preference' ? undefined : this.config.maxHistoryItems,
+      beforeMutate: async (current, snapshot) => {
+        if (!matches(current)) return;
+        await this.lifecycle.writeSnapshot(snapshot, 'forget-item-safety');
+        backupCreated = true;
+      }
+    });
+    if (backupCreated) await this.lifecycle.applyRetention();
+    return { category, removed };
+  }
+
+  /**
    * Get recommendations based on memory data
    * @param {string} context - Current context for recommendations
    * @returns {Object} Recommendations object

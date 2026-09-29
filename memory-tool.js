@@ -149,7 +149,8 @@ function createMemoryTool(memory, config = {}) {
           message: { type: 'string' },
           text: { type: 'string' },
           action: { type: 'string' },
-          category: { type: 'string' }
+          category: { type: 'string' },
+          removed: { type: 'boolean' }
         }
       },
       render: (_args, value) => {
@@ -197,11 +198,20 @@ function createMemoryTool(memory, config = {}) {
           }
           result = { ok: true, action: 'remember', category: args.category };
         } else {
-          if (Object.keys(args).some((key) => key !== 'action')) return errorResult();
           if (config.allowClearMemory !== true) return { ok: false, code: 'MEMORY_CLEAR_DISABLED', message: 'Clearing memory is disabled.' };
-          if (!memory || typeof memory.clearMemory !== 'function') return errorResult();
-          await memory.clearMemory();
-          result = { ok: true, action: 'forget' };
+          const extraKeys = Object.keys(args).filter((key) => key !== 'action');
+          if (extraKeys.length === 0) {
+            if (!memory || typeof memory.clearMemory !== 'function') return errorResult();
+            await memory.clearMemory();
+            result = { ok: true, action: 'forget' };
+          } else {
+            if (!CATEGORIES.includes(args.category) || !memory || typeof memory.forgetMemoryItem !== 'function') return errorResult();
+            const selectorKey = args.category === 'preference' ? 'key' : args.category === 'project' ? 'path' : 'value';
+            if (extraKeys.length !== 2 || !extraKeys.includes('category') || !extraKeys.includes(selectorKey)
+              || typeof args[selectorKey] !== 'string' || args[selectorKey].trim() === '') return errorResult();
+            const forgotten = await memory.forgetMemoryItem(args.category, { [selectorKey]: args[selectorKey] });
+            result = { ok: true, action: 'forget', category: args.category, removed: forgotten?.removed === true };
+          }
         }
 
         const safe = safeResult(result);

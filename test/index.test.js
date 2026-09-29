@@ -102,6 +102,16 @@ describe('default collection policy', () => {
     expect(feedback).toEqual(expect.objectContaining({ helpful: 1, notHelpful: 0, score: 1 }));
   });
 
+  test('exposes targeted memory deletion through the memory service', async () => {
+    plugin.apply(context, { storagePath: testFile, autoSaveInterval: 100 });
+    await context.services.memory.ready;
+    await context.services.memory.recordTopic('remove from service');
+
+    await expect(context.services.memory.forgetMemoryItem('topic', { value: 'remove from service' }))
+      .resolves.toEqual({ category: 'topic', removed: true });
+    expect(context.services.memory.exportData().sessionHistory.recentTopics).toEqual([]);
+  });
+
   test('keeps the service safe while asynchronous initialization is pending', async () => {
     plugin.apply(context, {
       storagePath: testFile,

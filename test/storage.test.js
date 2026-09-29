@@ -547,6 +547,21 @@ describe('MemoryStorage', () => {
       expect(() => storage.set('userPreferences.deepValue', value))
         .toThrow('stored value must not exceed 8 levels');
     });
+
+    test('runs beforeMutate against the persisted pre-mutation snapshot', async () => {
+      storage.set('userPreferences.defaultModel', 'before-mutation');
+      await storage.save();
+      const snapshots = [];
+
+      await storage.mutatePersisted('userPreferences.defaultModel', () => 'after-mutation', {
+        beforeMutate: async (current, snapshot) => {
+          snapshots.push({ current, model: snapshot.userPreferences.defaultModel });
+        }
+      });
+
+      expect(snapshots).toEqual([{ current: 'before-mutation', model: 'before-mutation' }]);
+      expect(storage.get('userPreferences.defaultModel')).toBe('after-mutation');
+    });
   });
 
   describe('Statistics', () => {

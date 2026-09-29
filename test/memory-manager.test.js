@@ -412,6 +412,56 @@ describe('MemoryManager', () => {
     });
   });
 
+  describe('Targeted Memory Deletion', () => {
+    test('removes exact preference, session, and project entries with a safety backup', async () => {
+      await manager.recordPreference('defaultModel', 'qwen3.7-plus');
+      await manager.recordSessionItem('topic', 'remove this topic');
+      await manager.recordSessionItem('topic', 'keep this topic');
+      await manager.recordProjectContext({ path: '/test/remove-project' });
+
+      await expect(manager.forgetMemoryItem('preference', { key: 'defaultModel' }))
+        .resolves.toEqual({ category: 'preference', removed: true });
+      await expect(manager.forgetMemoryItem('topic', { value: 'remove this topic' }))
+        .resolves.toEqual({ category: 'topic', removed: true });
+      await expect(manager.forgetMemoryItem('project', { path: '/test/remove-project' }))
+        .resolves.toEqual({ category: 'project', removed: true });
+
+      expect(storage.get('userPreferences.defaultModel')).toBeUndefined();
+      expect(storage.get('sessionHistory.recentTopics').map((entry) => entry.content)).toEqual(['keep this topic']);
+      expect(storage.get('projectContext.activeProjects')).toEqual([]);
+      expect((await manager.listBackups()).some((backup) => backup.reason === 'forget-item-safety')).toBe(true);
+    });
+
+    test('does not delete when an exact entry is absent or clearing is disabled', async () => {
+      await manager.recordSessionItem('task', 'keep task');
+      await expect(manager.forgetMemoryItem('task', { value: 'missing task' }))
+        .resolves.toEqual({ category: 'task', removed: false });
+      expect(storage.get('sessionHistory.frequentTasks')).toHaveLength(1);
+
+      const noClearConfig = validateConfig({ storagePath: testFile + '-targeted-noclear', allowClearMemory: false });
+      const noClearStorage = new MemoryStorage(testFile + '-targeted-noclear');
+      const noClearManager = new MemoryManager(noClearConfig, noClearStorage);
+      await noClearManager.initialize();
+      await expect(noClearManager.forgetMemoryItem('task', { value: 'keep task' }))
+        .rejects.toThrow('Memory clearing is disabled');
+      noClearManager.stopAutoSave();
+      await fs.rm(testFile + '-targeted-noclear', { force: true });
+    });
+
+    test('removes only one matching imported entry when duplicate values exist', async () => {
+      await storage.mutatePersisted('sessionHistory.recentTopics', () => [
+        { content: 'duplicate imported topic', timestamp: '2026-01-01T00:00:00.000Z' },
+        { content: 'duplicate imported topic', timestamp: '2026-01-02T00:00:00.000Z' }
+      ]);
+
+      await expect(manager.forgetMemoryItem('topic', { value: 'duplicate imported topic' }))
+        .resolves.toEqual({ category: 'topic', removed: true });
+      expect(storage.get('sessionHistory.recentTopics')).toEqual([
+        { content: 'duplicate imported topic', timestamp: '2026-01-02T00:00:00.000Z' }
+      ]);
+    });
+  });
+
   describe('Recommendations', () => {
     beforeEach(async () => {
       // Setup some data for recommendations

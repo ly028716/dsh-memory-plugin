@@ -506,6 +506,9 @@ class MemoryStorage {
       }
       parseDotPath(mutation.dotPath);
       if (typeof mutation.mutate !== 'function') throw new Error('mutate must be a function');
+      if (mutation.beforeMutate !== undefined && typeof mutation.beforeMutate !== 'function') {
+        throw new Error('beforeMutate must be a function');
+      }
       if (mutation.maxArrayLength !== undefined && mutation.maxArrayLength !== null
         && (!Number.isSafeInteger(mutation.maxArrayLength) || mutation.maxArrayLength <= 0)) {
         throw new Error('maxArrayLength must be a positive integer');
@@ -523,7 +526,13 @@ class MemoryStorage {
       try {
         const persistedSnapshot = await this.readPersistedSnapshot();
         const appliedMutations = [];
-        for (const { dotPath, mutate, maxArrayLength, maxArrayBytes } of normalizedMutations) {
+        for (const { dotPath, mutate, beforeMutate, maxArrayLength, maxArrayBytes } of normalizedMutations) {
+          if (beforeMutate) {
+            await beforeMutate(
+              cloneData(getPathValue(persistedSnapshot, dotPath)),
+              cloneData(persistedSnapshot)
+            );
+          }
           let nextValue = redactSensitiveData(mutate(cloneData(getPathValue(persistedSnapshot, dotPath))));
           if (Array.isArray(nextValue)
             && (maxArrayLength !== undefined && maxArrayLength !== null
