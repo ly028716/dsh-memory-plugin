@@ -81,7 +81,13 @@ npm run test:dsh-e2e
 `DSH_E2E_PACKAGE=@ly028716/dsh-memory-plugin`。E2E 会在启动探测前执行 doctor，并验证备份
 manifest 和物理目录隔离。
 
-兼容的 DSH CLI 版本为 `>=0.1.1-rc.2 <0.3.0`，已验证版本为 `0.1.1-rc.2` 和 `0.2.0-rc.2`。E2E 会在执行安装前检查 CLI 版本。使用源码构建的 `0.2.0-rc.2` 时，设置 `DSH_BIN=<dsh-source-root>\\apps\\cli\\lib\\bin.js` 与 `DSH_PACKAGE_ROOT=<dsh-source-root>\\apps\\cli` 后运行 `npm run test:dsh-e2e`。
+兼容的 DSH CLI 版本为 `>=0.1.1-rc.2 <0.3.0`。`0.2.0-rc.2` 已完成 CLI 调用、插件安装和 profile prepare 验证；完整宿主 E2E 需要完整 DSH 运行时依赖。E2E 会在执行安装前检查 CLI 版本。使用源码构建的 `0.2.0-rc.2` 时，在 PowerShell 中执行：
+
+```powershell
+$env:DSH_BIN = '<dsh-source-root>\apps\cli\lib\bin.js'
+$env:DSH_PACKAGE_ROOT = '<dsh-source-root>\apps\cli'
+npm run test:dsh-e2e
+```
 
 本机未安装 `dsh` 时测试会安全跳过；在 CI 或验收环境中可强制要求 CLI 存在：
 

@@ -10,6 +10,20 @@ describe('release CI configuration', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
     expect(packageJson.dsh.compatibility.cli).toBe('>=0.1.1-rc.2 <0.3.0');
+    for (const dependency of [
+      '@deepseek-ai/dsh-client-runtime',
+      '@deepseek-ai/dsh-client-ui-settings',
+      '@deepseek-ai/dsh-client-ui-settings-plugins'
+    ]) {
+      expect(packageJson.peerDependencies[dependency]).toBe('>=0.1.1-rc.2 <0.3.0');
+    }
+  });
+
+  test('should accept DSH 0.2 and reject the 0.3 boundary at runtime', () => {
+    const { assertDshCompatibility } = require('../test-dsh-e2e.js');
+
+    expect(() => assertDshCompatibility('0.2.0-rc.2')).not.toThrow();
+    expect(() => assertDshCompatibility('0.3.0')).toThrow('outside the supported range');
   });
 
   test('should execute a source JavaScript DSH CLI through Node.js', () => {
@@ -26,6 +40,7 @@ describe('release CI configuration', () => {
       expect(document).toContain('0.2.0-rc.2');
       expect(document).toContain('DSH_BIN');
       expect(document).toContain('DSH_PACKAGE_ROOT');
+      expect(document).toMatch(/full DSH runtime dependencies|完整 DSH 运行时依赖/);
     }
   });
 
@@ -81,6 +96,7 @@ describe('release CI configuration', () => {
     expect(workflow).toContain('NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache');
     expect(workflow).toContain('npx playwright install ${{ matrix.playwright_args }} chromium');
     expect(workflow).toContain('DSH_E2E_REQUIRED: 1');
+    expect(workflow).toContain('dsh-version: 0.2.0-rc.2');
     expect(workflow).not.toMatch(/uses:\s+[^\n]+@v\d/);
   });
 
@@ -324,10 +340,12 @@ describe('release CI configuration', () => {
     const rootDir = path.join(__dirname, '..');
     const ciWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'ci.yml'), 'utf8');
     const releaseWorkflow = fs.readFileSync(path.join(rootDir, '.github', 'workflows', 'release.yml'), 'utf8');
-    const installCommand = 'npm install --global @deepseek-ai/dsh@0.1.1-rc.2 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org';
+    expect(ciWorkflow).toContain('dsh-version: 0.1.1-rc.2');
+    expect(ciWorkflow).toContain('dsh-version: 0.2.0-rc.2');
+    expect(ciWorkflow).toContain('npm install --global @deepseek-ai/dsh@${{ matrix.dsh-version }} --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org');
+    expect(releaseWorkflow).toContain('npm install --global @deepseek-ai/dsh@0.2.0-rc.2 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org');
 
     for (const workflow of [ciWorkflow, releaseWorkflow]) {
-      expect(workflow).toContain(installCommand);
       expect(workflow).toContain('DSH_E2E_REQUIRED: 1');
     }
   });

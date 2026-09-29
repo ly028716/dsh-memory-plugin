@@ -102,9 +102,9 @@
     "jest": "^29.7.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-runtime": ">=0.1.1-rc.2 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.1-rc.2 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-settings-plugins": ">=0.1.1-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": ">=0.1.1-rc.2 <0.3.0",
     "react": ">=18 <20"
   },
   "peerDependenciesMeta": {

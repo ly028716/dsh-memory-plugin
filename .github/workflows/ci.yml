@@ -17,12 +17,15 @@ jobs:
           - os: ubuntu-latest
             node-version: 20
             playwright_args: --with-deps
+            dsh-version: 0.1.1-rc.2
           - os: ubuntu-latest
             node-version: 22
             playwright_args: --with-deps
+            dsh-version: 0.2.0-rc.2
           - os: windows-latest
             node-version: 20
             playwright_args: ''
+            dsh-version: 0.2.0-rc.2
 
     steps:
       - name: Checkout
@@ -38,7 +41,7 @@ jobs:
         run: npm ci
 
       - name: Install DSH CLI for real integration E2E
-        run: npm install --global @deepseek-ai/dsh@0.1.1-rc.2 --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+        run: npm install --global @deepseek-ai/dsh@${{ matrix.dsh-version }} --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
 
       - name: Unit tests
         run: npm test -- --runInBand

@@ -1033,7 +1033,11 @@ async function runLifecycleRegression() {
 }
 
 const entrypoint = process.env.DSH_E2E_LIFECYCLE_REGRESSION === '1' ? runLifecycleRegression : runE2E;
-entrypoint().catch((error) => {
-  console.error(`DSH clean-profile E2E failed: ${error.message}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  entrypoint().catch((error) => {
+    console.error(`DSH clean-profile E2E failed: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { assertDshCompatibility, commandInvocation };
