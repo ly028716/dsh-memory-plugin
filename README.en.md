@@ -79,7 +79,7 @@ verification; npm is the normal user installation path.
 
 #### DSH CLI compatibility
 
-This plugin supports DSH CLI `>=0.1.1-rc.2 <0.2.0`. The real install test uses an npm packed tarball;
+This plugin supports DSH CLI `>=0.1.1-rc.2 <0.3.0`, including the locally verified `0.2.0-rc.2`. The real install test uses an npm packed tarball;
 GitHub source installation tests must use a full 40-character commit SHA.
 
 Use the same DSH command for the published package and reproducible pinned-commit installs:
@@ -398,7 +398,12 @@ $env:DSH_PACKAGE_ROOT="$env:APPDATA\npm\node_modules\@deepseek-ai\dsh"
 $env:DSH_E2E_REQUIRED="1"
 npm run test:dsh-e2e
 
-# Supported DSH CLI: >=0.1.1-rc.2 <0.2.0 (verified: 0.1.1-rc.2)
+# Validate the DSH 0.2.0-rc.2 CLI built from source
+$env:DSH_BIN="<dsh-source-root>\apps\cli\lib\bin.js"
+$env:DSH_PACKAGE_ROOT="<dsh-source-root>\apps\cli"
+npm run test:dsh-e2e
+
+# Supported DSH CLI: >=0.1.1-rc.2 <0.3.0 (verified: 0.1.1-rc.2, 0.2.0-rc.2)
 
 # Run quick demo
 node quick-start.js

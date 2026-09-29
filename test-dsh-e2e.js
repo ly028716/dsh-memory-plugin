@@ -85,6 +85,13 @@ function assertDshCompatibility(versionText) {
 }
 
 function commandInvocation(command, args) {
+  if (command.toLowerCase().endsWith('.js')) {
+    return {
+      command: process.execPath,
+      args: [command, ...args]
+    };
+  }
+
   if (process.platform === 'win32' && command.toLowerCase().endsWith('.cmd')) {
     return {
       command: process.env.ComSpec || 'cmd.exe',

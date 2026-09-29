@@ -6,13 +6,36 @@ function readWorkflow(workflowPath) {
 }
 
 describe('release CI configuration', () => {
+  test('should declare compatibility with DSH 0.2 while retaining a 0.3 boundary', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+
+    expect(packageJson.dsh.compatibility.cli).toBe('>=0.1.1-rc.2 <0.3.0');
+  });
+
+  test('should execute a source JavaScript DSH CLI through Node.js', () => {
+    const e2eSource = fs.readFileSync(path.join(__dirname, '..', 'test-dsh-e2e.js'), 'utf8');
+
+    expect(e2eSource).toContain("command.toLowerCase().endsWith('.js')");
+    expect(e2eSource).toContain('command: process.execPath');
+    expect(e2eSource).toContain('args: [command, ...args]');
+  });
+
+  test('should document validation against the DSH 0.2 source CLI', () => {
+    for (const documentName of ['README.md', 'README.en.md', 'INSTALL.md']) {
+      const document = fs.readFileSync(path.join(__dirname, '..', documentName), 'utf8');
+      expect(document).toContain('0.2.0-rc.2');
+      expect(document).toContain('DSH_BIN');
+      expect(document).toContain('DSH_PACKAGE_ROOT');
+    }
+  });
+
   test('should define a reproducible package verification script', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
     expect(packageJson.name).toBe('@ly028716/dsh-memory-plugin');
     expect(packageJson.publishConfig).toEqual({ access: 'public' });
     expect(packageJson.dsh.compatibility).toEqual({
-      cli: '>=0.1.1-rc.2 <0.2.0'
+      cli: '>=0.1.1-rc.2 <0.3.0'
     });
     expect(packageJson.description).toBe(
       'DSH Memory Plugin - Intelligent memory system for tracking user preferences and habits'
@@ -330,7 +353,7 @@ describe('release CI configuration', () => {
   test('should document the real DSH clean-profile E2E command', () => {
     const rootDir = path.join(__dirname, '..');
     const e2eCommand = 'npm run test:dsh-e2e';
-    const compatibilityRange = '>=0.1.1-rc.2 <0.2.0';
+    const compatibilityRange = '>=0.1.1-rc.2 <0.3.0';
 
     expect(fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8'))
       .toContain(e2eCommand);

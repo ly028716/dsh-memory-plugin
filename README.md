@@ -78,7 +78,7 @@ junction，请显式执行上面的 `--fix`。它只会把物理目录移动到�
 
 #### DSH CLI 兼容范围
 
-插件兼容 DSH CLI `>=0.1.1-rc.2 <0.2.0`。真实安装测试会使用 npm packed tarball；GitHub
+插件兼容 DSH CLI `>=0.1.1-rc.2 <0.3.0`，包括本机验证的 `0.2.0-rc.2`。真实安装测试会使用 npm packed tarball；GitHub
 源代码安装测试必须锁定完整 40 位 commit SHA。
 
 发布包安装与可复现的 pinned commit 安装都使用同一个 DSH 命令：
@@ -396,7 +396,12 @@ $env:DSH_PACKAGE_ROOT="$env:APPDATA\npm\node_modules\@deepseek-ai\dsh"
 $env:DSH_E2E_REQUIRED="1"
 npm run test:dsh-e2e
 
-# 当前支持：DSH CLI >=0.1.1-rc.2 <0.2.0（已验证 0.1.1-rc.2）
+# 验证源码构建的 DSH 0.2.0-rc.2 CLI
+$env:DSH_BIN="<dsh-source-root>\apps\cli\lib\bin.js"
+$env:DSH_PACKAGE_ROOT="<dsh-source-root>\apps\cli"
+npm run test:dsh-e2e
+
+# 当前支持：DSH CLI >=0.1.1-rc.2 <0.3.0（已验证 0.1.1-rc.2、0.2.0-rc.2）
 
 # 运行快速演示
 node quick-start.js
