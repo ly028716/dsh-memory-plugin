@@ -82,6 +82,8 @@ verification; npm is the normal user installation path.
 This plugin supports DSH CLI `>=0.1.1-rc.2 <0.3.0`. `0.2.0-rc.2` has passed CLI invocation, plugin installation, and profile preparation checks; full host E2E requires full DSH runtime dependencies. The real install test uses an npm packed tarball;
 GitHub source installation tests must use a full 40-character commit SHA.
 
+See the [compatibility matrix](docs/COMPATIBILITY.md) for verified DSH, Node.js, and operating-system combinations.
+
 Use the same DSH command for the published package and reproducible pinned-commit installs:
 
 ```bash

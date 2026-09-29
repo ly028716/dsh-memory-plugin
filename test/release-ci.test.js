@@ -50,6 +50,15 @@ describe('release CI configuration', () => {
     }
   });
 
+  test('should publish the supported DSH compatibility matrix', () => {
+    const matrix = fs.readFileSync(path.join(__dirname, '..', 'docs', 'COMPATIBILITY.md'), 'utf8');
+
+    for (const value of ['0.1.1-rc.2', '0.2.0-rc.2', 'Node.js 20', 'Node.js 22', 'Ubuntu', 'Windows']) {
+      expect(matrix).toContain(value);
+    }
+    expect(matrix).toContain('published DSH 0.2.0-rc.2');
+  });
+
   test('should define a reproducible package verification script', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
